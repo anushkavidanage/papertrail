@@ -62,6 +62,24 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # Generates the platform launcher icons from assets/papertrail_logo.png.
+  # Re-run after changing the logo: dart run flutter_launcher_icons
+  flutter_launcher_icons: ^0.14.4
+
+# Configuration for `dart run flutter_launcher_icons`.
+flutter_launcher_icons:
+  image_path: "assets/papertrail_logo.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  web:
+    generate: true
+  windows:
+    generate: true
+    icon_size: 256
+  macos:
+    generate: true
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -73,10 +91,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  # Individual files (not the whole folder) are listed so the large launcher
+  # icon source image is not bundled into the app binary.
+  assets:
+    - assets/papertrail_cover.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

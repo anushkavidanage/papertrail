@@ -37,14 +37,14 @@ const String attachmentsDir = 'attachments';
 
 /// The OIDC client identifier (a URL to a hosted client profile document).
 const String clientId =
-    'https://anushkavidanage.github.io/solidui/example/client-profile.jsonld';
+    'https://anushkavidanage.github.io/apps/papertrail/client-profile.jsonld';
 
 /// Redirect URIs registered for [clientId]. The loopback entry is used on
 /// desktop/web; the custom scheme entry is used on mobile.
 const List<String> redirectUris = [
   'http://localhost:4400/redirect',
-  'com.example.demopod://redirect',
-  'https://anushkavidanage.github.io/solidui/example/redirect.html',
+  'com.example.papertrail://redirect',
+  'https://anushkavidanage.github.io/apps/papertrail/redirect.html',
 ];
 
 /// Post-logout redirect URIs.
@@ -99,8 +99,21 @@ const List<String> currencies = [
 ];
 
 /// File extensions accepted as receipt attachments.
-const List<String> imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'];
+const List<String> imageExtensions = [
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'webp',
+  'heic',
+];
 const List<String> attachmentExtensions = [...imageExtensions, 'pdf'];
+
+/// Maximum size of a receipt attachment (photo or PDF), in bytes.
+const int maxAttachmentBytes = 1024 * 1024; // 1 MB
 
 /// Brand seed colour used to derive the light/dark theme.
 const Color seedColor = Color(0xFF2E7D6B);
+
+/// Cover photo shown on the Solid login screen.
+const AssetImage loginCoverImage = AssetImage('assets/papertrail_cover.jpg');

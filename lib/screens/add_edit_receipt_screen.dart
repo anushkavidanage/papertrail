@@ -113,6 +113,15 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
       _showSnack('Could not read the selected file on this platform.');
       return;
     }
+    // file_picker reports 0 on platforms where it cannot stat the file.
+    final size = file.size > 0 ? file.size : File(file.path!).lengthSync();
+    if (size > maxAttachmentBytes) {
+      final sizeMb = (size / (1024 * 1024)).toStringAsFixed(1);
+      final limitMb = maxAttachmentBytes ~/ (1024 * 1024);
+      _showSnack(
+          'This file is $sizeMb MB. Attachments must be $limitMb MB or smaller.');
+      return;
+    }
     final ext = (file.extension ?? '').toLowerCase();
     setState(() {
       _pickedPath = file.path;
@@ -545,7 +554,8 @@ class _AttachmentSection extends StatelessWidget {
         Text('Attachment', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 4),
         Text(
-          'Add a photo of the receipt or a PDF document.',
+          'Add a photo of the receipt or a PDF document '
+          '(max ${maxAttachmentBytes ~/ (1024 * 1024)} MB).',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 12),

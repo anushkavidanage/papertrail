@@ -31,6 +31,7 @@ class PapertrailApp extends StatelessWidget {
       home: const SolidLogin(
         appDirectory: appDirectory,
         title: 'PAPERTRAIL',
+        image: loginCoverImage,
         link: 'https://solidproject.org',
         clientId: clientId,
         redirectUris: redirectUris,
