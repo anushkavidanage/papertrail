@@ -117,3 +117,6 @@ const Color seedColor = Color(0xFF2E7D6B);
 
 /// Cover photo shown on the Solid login screen.
 const AssetImage loginCoverImage = AssetImage('assets/papertrail_cover.jpg');
+
+/// App logo.
+const AssetImage appLogo = AssetImage('assets/papertrail_logo.png');

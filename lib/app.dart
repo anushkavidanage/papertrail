@@ -30,12 +30,14 @@ class PapertrailApp extends StatelessWidget {
       // is authenticated against their Pod.
       home: const SolidLogin(
         appDirectory: appDirectory,
-        title: 'PAPERTRAIL',
+        title: 'PaperTrail',
         image: loginCoverImage,
+        logo: appLogo,
         link: 'https://solidproject.org',
         clientId: clientId,
         redirectUris: redirectUris,
         postLogoutRedirectUris: postLogoutRedirectUris,
+        autoLogin: true,
         child: HomeShell(),
       ),
     );

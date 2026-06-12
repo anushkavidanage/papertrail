@@ -95,6 +95,7 @@ flutter:
   # icon source image is not bundled into the app binary.
   assets:
     - assets/papertrail_cover.jpg
+    - assets/papertrail_logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
