@@ -158,6 +158,10 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
                 ],
                 const SizedBox(height: 20),
                 _AttachmentViewer(receipt: receipt),
+                if (receipt.extraAttachments.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _ExtraAttachmentsViewer(receipt: receipt),
+                ],
                 const SizedBox(height: 24),
                 Text(
                   'Added ${formatDate(receipt.createdAt)}'
@@ -357,6 +361,156 @@ class _AttachmentError extends StatelessWidget {
         const SizedBox(width: 8),
         const Expanded(child: Text('Could not load attachment.')),
         TextButton(onPressed: onRetry, child: const Text('Retry')),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Extra attachments viewer
+// ---------------------------------------------------------------------------
+
+/// Shows all of a receipt's supplementary files.
+class _ExtraAttachmentsViewer extends StatelessWidget {
+  const _ExtraAttachmentsViewer({required this.receipt});
+
+  final Receipt receipt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Additional Files',
+            style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        ...receipt.extraAttachments.map(
+          (extra) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _ExtraAttachmentItem(receipt: receipt, extra: extra),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Downloads and displays one extra attachment.
+class _ExtraAttachmentItem extends StatefulWidget {
+  const _ExtraAttachmentItem(
+      {required this.receipt, required this.extra});
+
+  final Receipt receipt;
+  final ExtraAttachment extra;
+
+  @override
+  State<_ExtraAttachmentItem> createState() => _ExtraAttachmentItemState();
+}
+
+class _ExtraAttachmentItemState extends State<_ExtraAttachmentItem> {
+  Future<Uint8List>? _imageFuture;
+  bool _openingPdf = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _maybeLoadImage();
+  }
+
+  @override
+  void didUpdateWidget(_ExtraAttachmentItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.extra.id != widget.extra.id ||
+        oldWidget.extra.extension != widget.extra.extension) {
+      _maybeLoadImage();
+    }
+  }
+
+  void _maybeLoadImage() {
+    if (widget.extra.kind == AttachmentKind.image) {
+      _imageFuture = PodService.instance.readExtraAttachmentBytes(
+          widget.receipt.id, widget.extra.id);
+    } else {
+      _imageFuture = null;
+    }
+  }
+
+  Future<void> _openPdf() async {
+    setState(() => _openingPdf = true);
+    try {
+      final bytes = await PodService.instance.readExtraAttachmentBytes(
+          widget.receipt.id, widget.extra.id);
+      final dir = await getTemporaryDirectory();
+      final file = File(
+          '${dir.path}/${widget.receipt.id}_${widget.extra.id}.pdf');
+      await file.writeAsBytes(bytes, flush: true);
+      final result = await OpenFilex.open(file.path);
+      if (result.type != ResultType.done && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content:
+                    Text('Could not open PDF: ${result.message}')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not open file: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _openingPdf = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final extra = widget.extra;
+
+    Widget content;
+    if (extra.kind == AttachmentKind.image) {
+      content = FutureBuilder<Uint8List>(
+        future: _imageFuture,
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) {
+            return const SizedBox(
+                height: 120,
+                child: Center(child: CircularProgressIndicator()));
+          }
+          if (snap.hasError || !snap.hasData) {
+            return _AttachmentError(
+                onRetry: () => setState(_maybeLoadImage));
+          }
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.memory(snap.data!, fit: BoxFit.contain),
+          );
+        },
+      );
+    } else {
+      content = OutlinedButton.icon(
+        onPressed: _openingPdf ? null : _openPdf,
+        icon: _openingPdf
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.picture_as_pdf),
+        label: Text(_openingPdf ? 'Opening…' : 'Open PDF'),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (extra.description.isNotEmpty) ...[
+          Text(
+            extra.description,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: 4),
+        ],
+        content,
       ],
     );
   }

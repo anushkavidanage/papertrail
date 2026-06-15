@@ -18,12 +18,44 @@ enum AttachmentKind {
   }
 }
 
+/// A secondary file attached to a receipt, with a user-supplied description.
+///
+/// Stored on the Pod at `attachments/<receiptId>_e<id>`. The [id] is a stable
+/// UUID assigned at creation time and used as the Pod filename stem.
+class ExtraAttachment {
+  ExtraAttachment({
+    required this.id,
+    required this.extension,
+    required this.description,
+  });
+
+  final String id;
+  final String extension;
+  final String description;
+
+  AttachmentKind get kind => AttachmentKind.fromExtension(extension);
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'extension': extension,
+        'description': description,
+      };
+
+  factory ExtraAttachment.fromJson(Map<String, dynamic> json) =>
+      ExtraAttachment(
+        id: (json['id'] as String?) ?? '',
+        extension: (json['extension'] as String?) ?? '',
+        description: (json['description'] as String?) ?? '',
+      );
+}
+
 /// A single purchase receipt.
 ///
 /// Instances are serialised to an encrypted Turtle file on the user's Pod
 /// (see `ReceiptSerializer`). The attachment bytes (photo or PDF) are stored
 /// separately via the Solid large-file API and referenced here by
-/// [attachmentExtension].
+/// [attachmentExtension]. Additional files are stored per-entry in
+/// [extraAttachments].
 class Receipt {
   Receipt({
     required this.id,
@@ -40,6 +72,7 @@ class Receipt {
     this.hasWarranty = false,
     this.warrantyExpiry,
     this.attachmentExtension,
+    this.extraAttachments = const [],
   });
 
   /// Stable unique identifier; also the file name stem on the Pod.
@@ -78,6 +111,9 @@ class Receipt {
   /// File extension of the stored attachment (e.g. "jpg", "pdf"), or null when
   /// the receipt has no attachment.
   String? attachmentExtension;
+
+  /// Additional supplementary files (e.g. warranty card, invoice).
+  List<ExtraAttachment> extraAttachments;
 
   /// When the receipt entry was first created.
   final DateTime createdAt;
@@ -120,6 +156,7 @@ class Receipt {
     bool clearWarrantyExpiry = false,
     String? attachmentExtension,
     bool clearAttachment = false,
+    List<ExtraAttachment>? extraAttachments,
     DateTime? updatedAt,
   }) {
     return Receipt(
@@ -139,6 +176,7 @@ class Receipt {
       attachmentExtension: clearAttachment
           ? null
           : (attachmentExtension ?? this.attachmentExtension),
+      extraAttachments: extraAttachments ?? this.extraAttachments,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
@@ -158,6 +196,7 @@ class Receipt {
         'hasWarranty': hasWarranty,
         'warrantyExpiry': warrantyExpiry?.toIso8601String(),
         'attachmentExtension': attachmentExtension,
+        'extraAttachments': extraAttachments.map((e) => e.toJson()).toList(),
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
       };
@@ -182,6 +221,10 @@ class Receipt {
       hasWarranty: (json['hasWarranty'] as bool?) ?? false,
       warrantyExpiry: parseDate(json['warrantyExpiry']),
       attachmentExtension: json['attachmentExtension'] as String?,
+      extraAttachments: (json['extraAttachments'] as List?)
+              ?.map((e) => ExtraAttachment.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
       createdAt: parseDate(json['createdAt']) ?? DateTime.now(),
       updatedAt: parseDate(json['updatedAt']) ?? DateTime.now(),
     );

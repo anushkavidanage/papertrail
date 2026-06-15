@@ -31,8 +31,14 @@ class PodService {
   /// Relative-to-data path of a receipt file.
   String _receiptPath(String id) => '$receiptsDir/$id.ttl';
 
-  /// Relative-to-data path (no extension) of an attachment blob.
+  /// Relative-to-data path (no extension) of the primary attachment blob.
   String _attachmentPath(String id) => '$attachmentsDir/$id';
+
+  /// Relative-to-data path (no extension) of an extra attachment blob.
+  ///
+  /// [extraId] is the stable UUID stored in [ExtraAttachment.id].
+  String _extraAttachmentPath(String receiptId, String extraId) =>
+      '$attachmentsDir/${receiptId}_e$extraId';
 
   /// Whether a Solid session is currently active.
   Future<bool> get isLoggedIn => isUserLoggedIn();
@@ -104,13 +110,21 @@ class PodService {
 
   /// Save (create or update) a receipt.
   ///
-  /// When [attachmentPath] is provided the file at that path is uploaded as the
-  /// receipt's attachment (replacing any previous one). When [removeAttachment]
-  /// is true and no new file is supplied, the existing attachment is deleted.
+  /// When [attachmentPath] is provided the file at that path is uploaded as
+  /// the receipt's primary attachment (replacing any previous one). When
+  /// [removeAttachment] is true and no new file is supplied, the existing
+  /// attachment is deleted.
+  ///
+  /// [extraAttachmentPaths] maps each [ExtraAttachment.id] to the local file
+  /// path to upload for that slot. [extraAttachmentIdsToDelete] lists the IDs
+  /// of extra attachments that have been removed and should be deleted from
+  /// the Pod.
   Future<void> saveReceipt(
     Receipt receipt, {
     String? attachmentPath,
     bool removeAttachment = false,
+    Map<String, String> extraAttachmentPaths = const {},
+    List<String> extraAttachmentIdsToDelete = const [],
   }) async {
     if (!await isUserLoggedIn()) {
       throw NotReadyException('Please log in to your Pod first.');
@@ -131,6 +145,23 @@ class PodService {
       await _deleteAttachmentSilently(receipt.id);
     }
 
+    // Handle extra attachments.
+    if (extraAttachmentIdsToDelete.isNotEmpty ||
+        extraAttachmentPaths.isNotEmpty) {
+      await _ensureContainer('${await getDataDirPath()}/$attachmentsDir');
+    }
+    for (final extraId in extraAttachmentIdsToDelete) {
+      await _deleteExtraAttachmentSilently(receipt.id, extraId);
+    }
+    for (final entry in extraAttachmentPaths.entries) {
+      await _deleteExtraAttachmentSilently(receipt.id, entry.key);
+      await writeLargeFile(
+        localFilePath: entry.value,
+        remoteFilePath: _extraAttachmentPath(receipt.id, entry.key),
+        encrypted: true,
+      );
+    }
+
     final turtle = ReceiptSerializer.toTurtle(receipt);
     await writePod(
       _receiptPath(receipt.id),
@@ -140,12 +171,18 @@ class PodService {
     );
   }
 
-  /// Download the raw bytes of a receipt's attachment.
+  /// Download the raw bytes of a receipt's primary attachment.
   Future<Uint8List> readAttachmentBytes(String id) {
     return readLargeFileAsBytes(remoteFilePath: _attachmentPath(id));
   }
 
-  /// Permanently delete a receipt and its attachment (if any).
+  /// Download the raw bytes of one of a receipt's extra attachments.
+  Future<Uint8List> readExtraAttachmentBytes(
+          String receiptId, String extraId) =>
+      readLargeFileAsBytes(
+          remoteFilePath: _extraAttachmentPath(receiptId, extraId));
+
+  /// Permanently delete a receipt and all of its attachments.
   Future<void> deleteReceipt(Receipt receipt) async {
     if (!await isUserLoggedIn()) {
       throw NotReadyException('Please log in to your Pod first.');
@@ -153,6 +190,9 @@ class PodService {
 
     if (receipt.hasAttachment) {
       await _deleteAttachmentSilently(receipt.id);
+    }
+    for (final extra in receipt.extraAttachments) {
+      await _deleteExtraAttachmentSilently(receipt.id, extra.id);
     }
 
     final dataDir = await getDataDirPath();
@@ -166,5 +206,13 @@ class PodService {
     } catch (_) {
       // No existing attachment, or already removed.
     }
+  }
+
+  Future<void> _deleteExtraAttachmentSilently(
+      String receiptId, String extraId) async {
+    try {
+      await deleteLargeFile(
+          remoteFilePath: _extraAttachmentPath(receiptId, extraId));
+    } catch (_) {}
   }
 }
