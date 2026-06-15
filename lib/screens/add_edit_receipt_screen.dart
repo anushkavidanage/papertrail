@@ -16,6 +16,46 @@ import '../models/receipt.dart';
 import '../services/receipt_store.dart';
 import '../utils/formatting.dart';
 
+// ---------------------------------------------------------------------------
+// Extra-slot state holder — one per supplementary file in the form.
+// ---------------------------------------------------------------------------
+
+class _ExtraSlot {
+  _ExtraSlot({
+    required this.id,
+    this.existingExtension,
+    String? descriptionText,
+  }) : description = TextEditingController(text: descriptionText ?? '');
+
+  /// Stable UUID — also used as the Pod filename stem for this extra file.
+  final String id;
+
+  /// Extension already stored on the Pod when editing an existing receipt.
+  final String? existingExtension;
+
+  /// User-facing description controller.
+  final TextEditingController description;
+
+  /// Local file path after the user picks (or compresses) a new file.
+  String? pickedPath;
+
+  /// Extension of the newly-picked file.
+  String? pickedExt;
+
+  bool isCompressing = false;
+
+  /// Effective extension to show in the UI and save to the model.
+  String? get effectiveExtension => pickedExt ?? existingExtension;
+
+  bool get hasFile => effectiveExtension != null;
+
+  void dispose() => description.dispose();
+}
+
+// ---------------------------------------------------------------------------
+// Screen widget
+// ---------------------------------------------------------------------------
+
 class AddEditReceiptScreen extends StatefulWidget {
   const AddEditReceiptScreen({super.key, this.existing});
 
@@ -44,14 +84,21 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
   late bool _hasWarranty;
   DateTime? _warrantyExpiry;
 
-  // Attachment state.
+  // Primary attachment state.
   String? _existingAttachmentExt;
   String? _pickedPath;
   String? _pickedExt;
   bool _removeAttachment = false;
+  bool _compressing = false;
+
+  // Extra attachment state.
+  late final List<_ExtraSlot> _extraSlots;
+
+  /// IDs of existing extra attachments that were removed; their Pod files
+  /// must be deleted on save.
+  final List<String> _removedExtraIds = [];
 
   bool _saving = false;
-  bool _compressing = false;
 
   @override
   void initState() {
@@ -69,6 +116,14 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
     _hasWarranty = r?.hasWarranty ?? false;
     _warrantyExpiry = r?.warrantyExpiry;
     _existingAttachmentExt = r?.attachmentExtension;
+
+    _extraSlots = (r?.extraAttachments ?? [])
+        .map((e) => _ExtraSlot(
+              id: e.id,
+              existingExtension: e.extension,
+              descriptionText: e.description,
+            ))
+        .toList();
   }
 
   @override
@@ -77,6 +132,9 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
     _amountController.dispose();
     _vendorController.dispose();
     _descriptionController.dispose();
+    for (final slot in _extraSlots) {
+      slot.dispose();
+    }
     super.dispose();
   }
 
@@ -85,6 +143,10 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
     if (_removeAttachment) return null;
     return _existingAttachmentExt;
   }
+
+  // -------------------------------------------------------------------------
+  // Date pickers
+  // -------------------------------------------------------------------------
 
   Future<void> _pickPurchaseDate() async {
     final picked = await showDatePicker(
@@ -99,12 +161,17 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
   Future<void> _pickWarrantyDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _warrantyExpiry ?? DateTime.now().add(const Duration(days: 365)),
+      initialDate: _warrantyExpiry ??
+          DateTime.now().add(const Duration(days: 365)),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
     );
     if (picked != null) setState(() => _warrantyExpiry = picked);
   }
+
+  // -------------------------------------------------------------------------
+  // Primary attachment
+  // -------------------------------------------------------------------------
 
   Future<void> _pickAttachment() async {
     final result = await FilePicker.pickFiles(
@@ -185,6 +252,94 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
     });
   }
 
+  // -------------------------------------------------------------------------
+  // Extra attachments
+  // -------------------------------------------------------------------------
+
+  void _addExtraSlot() {
+    setState(() => _extraSlots.add(_ExtraSlot(id: _uuid.v4())));
+  }
+
+  void _removeExtraSlot(int index) {
+    final slot = _extraSlots[index];
+    if (slot.existingExtension != null) {
+      // Mark for deletion from the Pod on save.
+      _removedExtraIds.add(slot.id);
+    }
+    setState(() => _extraSlots.removeAt(index));
+    slot.dispose();
+  }
+
+  Future<void> _pickExtraFile(int index) async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: attachmentExtensions,
+      withData: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.single;
+    if (file.path == null) {
+      _showSnack('Could not read the selected file on this platform.');
+      return;
+    }
+    final size = file.size > 0 ? file.size : File(file.path!).lengthSync();
+    final ext = (file.extension ?? '').toLowerCase();
+
+    if (size > maxAttachmentBytes) {
+      if (AttachmentKind.fromExtension(ext) != AttachmentKind.image) {
+        final sizeMb = (size / (1024 * 1024)).toStringAsFixed(1);
+        final limitMb = maxAttachmentBytes ~/ (1024 * 1024);
+        _showSnack(
+            'This PDF is $sizeMb MB. PDFs must be $limitMb MB or smaller.');
+        return;
+      }
+
+      setState(() => _extraSlots[index].isCompressing = true);
+      try {
+        final originalBytes = await File(file.path!).readAsBytes();
+        final compressed = await compute(
+          _compressToJpeg,
+          (originalBytes, maxAttachmentBytes),
+        );
+        if (!mounted) return;
+        if (compressed == null || compressed.length > maxAttachmentBytes) {
+          _showSnack(
+              'Could not compress this image under '
+              '${maxAttachmentBytes ~/ (1024 * 1024)} MB. '
+              'Try a JPEG file or a smaller image.');
+          setState(() => _extraSlots[index].isCompressing = false);
+          return;
+        }
+        final dir = await getTemporaryDirectory();
+        final tmp = File(
+            '${dir.path}/pt_extra_${DateTime.now().millisecondsSinceEpoch}.jpg');
+        await tmp.writeAsBytes(compressed);
+        final origMb = (size / (1024 * 1024)).toStringAsFixed(1);
+        final newMb = (compressed.length / (1024 * 1024)).toStringAsFixed(1);
+        if (!mounted) return;
+        setState(() {
+          _extraSlots[index].pickedPath = tmp.path;
+          _extraSlots[index].pickedExt = 'jpg';
+          _extraSlots[index].isCompressing = false;
+        });
+        _showSnack('Image compressed from $origMb MB to $newMb MB.');
+      } catch (e) {
+        if (mounted) setState(() => _extraSlots[index].isCompressing = false);
+        _showSnack('Could not compress image: $e');
+      }
+      return;
+    }
+
+    setState(() {
+      _extraSlots[index].pickedPath = file.path;
+      _extraSlots[index].pickedExt = ext.isEmpty ? null : ext;
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Tags
+  // -------------------------------------------------------------------------
+
   Future<void> _addCustomTag({required bool isCategory}) async {
     final controller = TextEditingController();
     final value = await showDialog<String>(
@@ -202,7 +357,8 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text),
             child: const Text('Add'),
@@ -222,6 +378,10 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  // -------------------------------------------------------------------------
+  // Save
+  // -------------------------------------------------------------------------
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_hasWarranty && _warrantyExpiry == null) {
@@ -233,6 +393,21 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
         double.parse(_amountController.text.trim().replaceAll(',', ''));
     final now = DateTime.now();
     final existing = widget.existing;
+
+    // Build extra attachment data.
+    final extraAttachments = <ExtraAttachment>[];
+    final extraPaths = <String, String>{};
+    for (final slot in _extraSlots) {
+      if (!slot.hasFile) continue;
+      extraAttachments.add(ExtraAttachment(
+        id: slot.id,
+        extension: slot.effectiveExtension!,
+        description: slot.description.text.trim(),
+      ));
+      if (slot.pickedPath != null) {
+        extraPaths[slot.id] = slot.pickedPath!;
+      }
+    }
 
     final receipt = Receipt(
       id: existing?.id ?? _uuid.v4(),
@@ -247,6 +422,7 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
       hasWarranty: _hasWarranty,
       warrantyExpiry: _hasWarranty ? _warrantyExpiry : null,
       attachmentExtension: _effectiveAttachmentExt,
+      extraAttachments: extraAttachments,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     );
@@ -257,6 +433,8 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
         receipt,
         attachmentPath: _pickedPath,
         removeAttachment: _removeAttachment && _pickedPath == null,
+        extraAttachmentPaths: extraPaths,
+        extraAttachmentIdsToDelete: _removedExtraIds,
       );
       if (!mounted) return;
       Navigator.of(context).pop(receipt);
@@ -265,6 +443,10 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
       _showSnack('Could not save receipt: $e');
     }
   }
+
+  // -------------------------------------------------------------------------
+  // Build
+  // -------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -330,8 +512,8 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
                             border: OutlineInputBorder(),
                           ),
                           items: currencies
-                              .map((c) => DropdownMenuItem(
-                                  value: c, child: Text(c)))
+                              .map((c) =>
+                                  DropdownMenuItem(value: c, child: Text(c)))
                               .toList(),
                           onChanged: (v) =>
                               setState(() => _currency = v ?? _currency),
@@ -405,13 +587,19 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
                     onClear: _clearAttachment,
                     isCompressing: _compressing,
                   ),
+                  const SizedBox(height: 24),
+                  _ExtraAttachmentsSection(
+                    slots: _extraSlots,
+                    onAdd: _addExtraSlot,
+                    onRemove: _removeExtraSlot,
+                    onPick: _pickExtraFile,
+                  ),
                   const SizedBox(height: 32),
                   FilledButton.icon(
                     onPressed: _saving ? null : _save,
                     icon: const Icon(Icons.save),
-                    label: Text(widget.isEditing
-                        ? 'Save changes'
-                        : 'Save receipt'),
+                    label: Text(
+                        widget.isEditing ? 'Save changes' : 'Save receipt'),
                   ),
                   const SizedBox(height: 48),
                 ],
@@ -428,6 +616,10 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Shared form sub-widgets
+// ---------------------------------------------------------------------------
 
 class _DateTile extends StatelessWidget {
   const _DateTile({
@@ -535,7 +727,9 @@ class _WarrantySection extends StatelessWidget {
           _DateTile(
             icon: Icons.verified_user_outlined,
             label: 'Warranty expires',
-            value: expiry == null ? 'Tap to choose a date' : formatDate(expiry!),
+            value: expiry == null
+                ? 'Tap to choose a date'
+                : formatDate(expiry!),
             onTap: onPickExpiry,
           ),
         ],
@@ -645,6 +839,174 @@ class _AttachmentSection extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Extra attachments section
+// ---------------------------------------------------------------------------
+
+class _ExtraAttachmentsSection extends StatelessWidget {
+  const _ExtraAttachmentsSection({
+    required this.slots,
+    required this.onAdd,
+    required this.onRemove,
+    required this.onPick,
+  });
+
+  final List<_ExtraSlot> slots;
+  final VoidCallback onAdd;
+  final void Function(int index) onRemove;
+  final Future<void> Function(int index) onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Additional Files',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text(
+          'Attach supplementary files such as a warranty card or invoice. '
+          'Same size limits apply.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 12),
+        ...List.generate(slots.length, (i) => _ExtraSlotTile(
+              index: i,
+              slot: slots[i],
+              onRemove: () => onRemove(i),
+              onPick: () => onPick(i),
+            )),
+        TextButton.icon(
+          onPressed: onAdd,
+          icon: const Icon(Icons.add),
+          label: const Text('Add another file'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExtraSlotTile extends StatelessWidget {
+  const _ExtraSlotTile({
+    required this.index,
+    required this.slot,
+    required this.onRemove,
+    required this.onPick,
+  });
+
+  final int index;
+  final _ExtraSlot slot;
+  final VoidCallback onRemove;
+  final VoidCallback onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final kind = AttachmentKind.fromExtension(slot.effectiveExtension);
+    final hasFile = slot.hasFile;
+
+    Widget preview;
+    if (slot.isCompressing) {
+      preview = Row(
+        children: [
+          SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Text('Compressing image…'),
+        ],
+      );
+    } else if (slot.pickedPath != null && kind == AttachmentKind.image) {
+      preview = ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.file(
+          File(slot.pickedPath!),
+          height: 120,
+          width: double.infinity,
+          fit: BoxFit.cover,
+        ),
+      );
+    } else if (hasFile) {
+      preview = Row(
+        children: [
+          Icon(
+            kind == AttachmentKind.pdf
+                ? Icons.picture_as_pdf
+                : Icons.image,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              slot.pickedPath == null
+                  ? 'Stored on your Pod (.${slot.effectiveExtension})'
+                  : 'Selected file (.${slot.effectiveExtension})',
+            ),
+          ),
+        ],
+      );
+    } else {
+      preview = Text(
+        'No file selected',
+        style: TextStyle(color: Theme.of(context).colorScheme.outline),
+      );
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('File ${index + 1}',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: 'Remove this file',
+                  onPressed: onRemove,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            preview,
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: slot.isCompressing ? null : onPick,
+              icon: const Icon(Icons.attach_file),
+              label: Text(hasFile ? 'Replace' : 'Choose file'),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: slot.description,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Description *',
+                hintText: 'e.g. Warranty card, Invoice, User manual',
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) {
+                if (slot.hasFile && (v == null || v.trim().isEmpty)) {
+                  return 'Please describe this file';
+                }
+                return null;
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

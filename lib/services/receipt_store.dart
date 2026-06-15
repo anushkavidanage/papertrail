@@ -81,11 +81,15 @@ class ReceiptStore extends ChangeNotifier {
     Receipt receipt, {
     String? attachmentPath,
     bool removeAttachment = false,
+    Map<String, String> extraAttachmentPaths = const {},
+    List<String> extraAttachmentIdsToDelete = const [],
   }) async {
     await _pod.saveReceipt(
       receipt,
       attachmentPath: attachmentPath,
       removeAttachment: removeAttachment,
+      extraAttachmentPaths: extraAttachmentPaths,
+      extraAttachmentIdsToDelete: extraAttachmentIdsToDelete,
     );
     _receipts.removeWhere((r) => r.id == receipt.id);
     _receipts.add(receipt);
