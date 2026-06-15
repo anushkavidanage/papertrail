@@ -54,6 +54,9 @@ dependencies:
   # Charts for the Analytics screen.
   fl_chart: ^0.69.0
 
+  # Pure-Dart image decoding / re-encoding used to compress oversized photos.
+  image: ^4.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

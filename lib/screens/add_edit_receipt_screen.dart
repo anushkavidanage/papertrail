@@ -2,9 +2,13 @@
 library;
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../constants/app_config.dart';
@@ -47,6 +51,7 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
   bool _removeAttachment = false;
 
   bool _saving = false;
+  bool _compressing = false;
 
   @override
   void initState() {
@@ -115,14 +120,56 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
     }
     // file_picker reports 0 on platforms where it cannot stat the file.
     final size = file.size > 0 ? file.size : File(file.path!).lengthSync();
+    final ext = (file.extension ?? '').toLowerCase();
+
     if (size > maxAttachmentBytes) {
-      final sizeMb = (size / (1024 * 1024)).toStringAsFixed(1);
-      final limitMb = maxAttachmentBytes ~/ (1024 * 1024);
-      _showSnack(
-          'This file is $sizeMb MB. Attachments must be $limitMb MB or smaller.');
+      if (AttachmentKind.fromExtension(ext) != AttachmentKind.image) {
+        // PDFs cannot be compressed — hard limit.
+        final sizeMb = (size / (1024 * 1024)).toStringAsFixed(1);
+        final limitMb = maxAttachmentBytes ~/ (1024 * 1024);
+        _showSnack(
+            'This PDF is $sizeMb MB. PDFs must be $limitMb MB or smaller.');
+        return;
+      }
+
+      // Image is over the limit — compress it in a background isolate.
+      setState(() => _compressing = true);
+      try {
+        final originalBytes = await File(file.path!).readAsBytes();
+        final compressed = await compute(
+          _compressToJpeg,
+          (originalBytes, maxAttachmentBytes),
+        );
+        if (!mounted) return;
+        if (compressed == null || compressed.length > maxAttachmentBytes) {
+          _showSnack(
+              'Could not compress this image under '
+              '${maxAttachmentBytes ~/ (1024 * 1024)} MB. '
+              'Try a JPEG file or a smaller image.');
+          setState(() => _compressing = false);
+          return;
+        }
+        final dir = await getTemporaryDirectory();
+        final tmp = File(
+            '${dir.path}/pt_${DateTime.now().millisecondsSinceEpoch}.jpg');
+        await tmp.writeAsBytes(compressed);
+        final origMb = (size / (1024 * 1024)).toStringAsFixed(1);
+        final newMb = (compressed.length / (1024 * 1024)).toStringAsFixed(1);
+        if (!mounted) return;
+        setState(() {
+          _pickedPath = tmp.path;
+          _pickedExt = 'jpg';
+          _removeAttachment = false;
+          _compressing = false;
+        });
+        _showSnack('Image compressed from $origMb MB to $newMb MB.');
+      } catch (e) {
+        if (mounted) setState(() => _compressing = false);
+        _showSnack('Could not compress image: $e');
+      }
       return;
     }
-    final ext = (file.extension ?? '').toLowerCase();
+
     setState(() {
       _pickedPath = file.path;
       _pickedExt = ext.isEmpty ? null : ext;
@@ -356,6 +403,7 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
                     pickedPath: _pickedPath,
                     onPick: _pickAttachment,
                     onClear: _clearAttachment,
+                    isCompressing: _compressing,
                   ),
                   const SizedBox(height: 32),
                   FilledButton.icon(
@@ -502,12 +550,14 @@ class _AttachmentSection extends StatelessWidget {
     required this.pickedPath,
     required this.onPick,
     required this.onClear,
+    this.isCompressing = false,
   });
 
   final String? extension;
   final String? pickedPath;
   final VoidCallback onPick;
   final VoidCallback onClear;
+  final bool isCompressing;
 
   @override
   Widget build(BuildContext context) {
@@ -515,7 +565,22 @@ class _AttachmentSection extends StatelessWidget {
     final hasAttachment = extension != null;
 
     Widget preview;
-    if (pickedPath != null && kind == AttachmentKind.image) {
+    if (isCompressing) {
+      preview = Row(
+        children: [
+          SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Text('Compressing image…'),
+        ],
+      );
+    } else if (pickedPath != null && kind == AttachmentKind.image) {
       preview = ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: Image.file(
@@ -554,8 +619,9 @@ class _AttachmentSection extends StatelessWidget {
         Text('Attachment', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 4),
         Text(
-          'Add a photo of the receipt or a PDF document '
-          '(max ${maxAttachmentBytes ~/ (1024 * 1024)} MB).',
+          'Images over ${maxAttachmentBytes ~/ (1024 * 1024)} MB are compressed '
+          'automatically. PDFs must be '
+          '${maxAttachmentBytes ~/ (1024 * 1024)} MB or smaller.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 12),
@@ -564,11 +630,11 @@ class _AttachmentSection extends StatelessWidget {
         Row(
           children: [
             OutlinedButton.icon(
-              onPressed: onPick,
+              onPressed: isCompressing ? null : onPick,
               icon: const Icon(Icons.attach_file),
               label: Text(hasAttachment ? 'Replace' : 'Add file'),
             ),
-            if (hasAttachment) ...[
+            if (hasAttachment && !isCompressing) ...[
               const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: onClear,
@@ -581,4 +647,36 @@ class _AttachmentSection extends StatelessWidget {
       ],
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Image compression — runs in a background isolate via compute().
+//
+// Decodes any supported image format, resizes to at most 2048 px on the
+// longest side, then re-encodes as JPEG at progressively lower quality until
+// the result fits within [maxBytes]. Returns null if the image cannot be
+// decoded (e.g. unsupported HEIC on this platform).
+// ---------------------------------------------------------------------------
+
+Uint8List? _compressToJpeg((Uint8List bytes, int maxBytes) args) {
+  final (bytes, maxBytes) = args;
+
+  var image = img.decodeImage(bytes);
+  if (image == null) return null;
+
+  // Downscale if either dimension exceeds 2048 px.
+  const maxDim = 2048;
+  if (image.width > maxDim || image.height > maxDim) {
+    image = image.width >= image.height
+        ? img.copyResize(image, width: maxDim)
+        : img.copyResize(image, height: maxDim);
+  }
+
+  for (final quality in [85, 70, 50, 30, 15]) {
+    final out = img.encodeJpg(image, quality: quality);
+    if (out.length <= maxBytes) return out;
+  }
+  // Last resort — quality 10.  Virtually any photo fits under 1 MB at this
+  // level after the resize above.
+  return img.encodeJpg(image, quality: 10);
 }
