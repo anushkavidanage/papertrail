@@ -51,6 +51,9 @@ dependencies:
   # Generate stable unique identifiers for each receipt.
   uuid: ^4.5.1
 
+  # Charts for the Analytics screen.
+  fl_chart: ^0.69.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

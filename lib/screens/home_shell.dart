@@ -10,6 +10,7 @@ import '../services/receipt_store.dart';
 import '../widgets/locked_backdrop.dart';
 import 'add_edit_receipt_screen.dart';
 import 'all_receipts_view.dart';
+import 'analytics_view.dart';
 import 'recent_receipts_view.dart';
 
 class HomeShell extends StatefulWidget {
@@ -54,6 +55,12 @@ class _HomeShellState extends State<HomeShell> {
           title: 'Receipts',
           tooltip: 'Browse, search and filter all of your receipts.',
           child: AllReceiptsView(),
+        ),
+        SolidMenuItem(
+          icon: Icons.analytics_outlined,
+          title: 'Analytics',
+          tooltip: 'Charts and statistics about your spending.',
+          child: AnalyticsView(),
         ),
         SolidMenuItem(
           icon: Icons.folder_outlined,
