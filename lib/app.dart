@@ -38,6 +38,7 @@ class PapertrailApp extends StatelessWidget {
         redirectUris: redirectUris,
         postLogoutRedirectUris: postLogoutRedirectUris,
         autoLogin: true,
+        loginButtonStyle: LoginButtonStyle(background: lightOrage),
         child: HomeShell(),
       ),
     );
