@@ -113,7 +113,8 @@ const List<String> attachmentExtensions = [...imageExtensions, 'pdf'];
 const int maxAttachmentBytes = 1024 * 1024; // 1 MB
 
 /// Brand seed colour used to derive the light/dark theme.
-const Color seedColor = Color(0xFF2E7D6B);
+/// Matches the primary orange from the Papertrail logo (#ef6e37).
+const Color seedColor = Color(0xFFEF6E37);
 
 /// Cover photo shown on the Solid login screen.
 const AssetImage loginCoverImage = AssetImage('assets/papertrail_cover.jpg');
