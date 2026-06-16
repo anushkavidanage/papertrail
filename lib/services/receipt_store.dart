@@ -104,4 +104,13 @@ class ReceiptStore extends ChangeNotifier {
     _receipts.removeWhere((r) => r.id == receipt.id);
     notifyListeners();
   }
+
+  /// Delete multiple receipts from the Pod and the in-memory list.
+  Future<void> deleteMany(Iterable<Receipt> receipts) async {
+    for (final r in receipts) {
+      await _pod.deleteReceipt(r);
+      _receipts.removeWhere((x) => x.id == r.id);
+    }
+    notifyListeners();
+  }
 }

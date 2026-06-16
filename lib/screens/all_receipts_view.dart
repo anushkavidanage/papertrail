@@ -49,6 +49,11 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
   double? _maxAmount;
   bool _exporting = false;
 
+  // Bulk-selection state
+  bool _selectionMode = false;
+  final Set<String> _selectedIds = {};
+  bool _deletingMany = false;
+
   bool get _hasActiveFilter =>
       _query.trim().isNotEmpty ||
       _categoryFilter != null ||
@@ -127,6 +132,134 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
+  }
+
+  void _enterSelectionMode(String id) {
+    setState(() {
+      _selectionMode = true;
+      _selectedIds.add(id);
+    });
+  }
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _selectAll(List<Receipt> receipts) {
+    setState(() {
+      _selectedIds
+        ..clear()
+        ..addAll(receipts.map((r) => r.id));
+    });
+  }
+
+  Future<void> _deleteSelected() async {
+    final store = ReceiptStore.instance;
+    final toDelete =
+        store.receipts.where((r) => _selectedIds.contains(r.id)).toList();
+    final count = toDelete.length;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete receipts'),
+        content: Text(
+          'Permanently delete $count receipt${count == 1 ? '' : 's'}? '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    setState(() => _deletingMany = true);
+    try {
+      await store.deleteMany(toDelete);
+      if (!mounted) return;
+      _exitSelectionMode();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Delete failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _deletingMany = false);
+    }
+  }
+
+  Widget _selectionBar(BuildContext context, List<Receipt> filtered) {
+    final count = _selectedIds.length;
+    final allSelected =
+        filtered.isNotEmpty && _selectedIds.length == filtered.length;
+    final theme = Theme.of(context);
+    return ColoredBox(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: 'Exit selection',
+              onPressed: _exitSelectionMode,
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                '$count selected',
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            TextButton(
+              onPressed: filtered.isEmpty
+                  ? null
+                  : allSelected
+                      ? () => setState(() => _selectedIds.clear())
+                      : () => _selectAll(filtered),
+              child: Text(allSelected ? 'Deselect all' : 'Select all'),
+            ),
+            _deletingMany
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: count == 0
+                        ? 'Select receipts to delete'
+                        : 'Delete $count receipt${count == 1 ? '' : 's'}',
+                    onPressed: count == 0 ? null : _deleteSelected,
+                  ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _sortButton(BuildContext context) {
@@ -241,104 +374,110 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
 
         return Column(
           children: [
-            // Search + sort + export row
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 4, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (v) => setState(() => _query = v),
-                      decoration: InputDecoration(
-                        hintText: 'Search receipts',
-                        prefixIcon: const Icon(Icons.search),
-                        border: const OutlineInputBorder(),
-                        isDense: true,
-                        suffixIcon: _query.isEmpty
-                            ? null
-                            : IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() => _query = '');
-                                },
-                              ),
-                      ),
-                    ),
-                  ),
-                  _sortButton(context),
-                  _exporting
-                      ? const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        )
-                      : IconButton(
-                          icon: const Icon(Icons.download_outlined),
-                          tooltip: filtered.isEmpty
-                              ? 'No receipts to export'
-                              : 'Export ${filtered.length} receipt${filtered.length == 1 ? '' : 's'} to CSV',
-                          onPressed: filtered.isEmpty
-                              ? null
-                              : () => _exportCsv(filtered),
-                        ),
-                ],
-              ),
-            ),
-            // Amount range filter row
-            _amountRow(context),
-            // Category filter chips
-            if (categories.isNotEmpty)
-              SizedBox(
-                height: 44,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+            // Selection bar (replaces search/filter UI while in selection mode)
+            if (_selectionMode)
+              _selectionBar(context, filtered)
+            else ...[
+              // Search + sort + export row
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 4, 8),
+                child: Row(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: FilterChip(
-                        label: const Text('All'),
-                        selected: _categoryFilter == null,
-                        onSelected: (_) =>
-                            setState(() => _categoryFilter = null),
-                      ),
-                    ),
-                    ...categories.map(
-                      (c) => Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: FilterChip(
-                          label: Text(c),
-                          selected: _categoryFilter == c,
-                          onSelected: (sel) => setState(
-                              () => _categoryFilter = sel ? c : null),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (v) => setState(() => _query = v),
+                        decoration: InputDecoration(
+                          hintText: 'Search receipts',
+                          prefixIcon: const Icon(Icons.search),
+                          border: const OutlineInputBorder(),
+                          isDense: true,
+                          suffixIcon: _query.isEmpty
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _query = '');
+                                  },
+                                ),
                         ),
                       ),
                     ),
+                    _sortButton(context),
+                    _exporting
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : IconButton(
+                            icon: const Icon(Icons.download_outlined),
+                            tooltip: filtered.isEmpty
+                                ? 'No receipts to export'
+                                : 'Export ${filtered.length} receipt${filtered.length == 1 ? '' : 's'} to CSV',
+                            onPressed: filtered.isEmpty
+                                ? null
+                                : () => _exportCsv(filtered),
+                          ),
                   ],
                 ),
               ),
-            // Result count summary when any filter is active
-            if (_hasActiveFilter)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    filtered.isEmpty
-                        ? 'No receipts match your filters.'
-                        : '${filtered.length} receipt${filtered.length == 1 ? '' : 's'} found',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant,
+              // Amount range filter row
+              _amountRow(context),
+              // Category filter chips
+              if (categories.isNotEmpty)
+                SizedBox(
+                  height: 44,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: FilterChip(
+                          label: const Text('All'),
+                          selected: _categoryFilter == null,
+                          onSelected: (_) =>
+                              setState(() => _categoryFilter = null),
                         ),
+                      ),
+                      ...categories.map(
+                        (c) => Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: FilterChip(
+                            label: Text(c),
+                            selected: _categoryFilter == c,
+                            onSelected: (sel) => setState(
+                                () => _categoryFilter = sel ? c : null),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
+              // Result count summary when any filter is active
+              if (_hasActiveFilter)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      filtered.isEmpty
+                          ? 'No receipts match your filters.'
+                          : '${filtered.length} receipt${filtered.length == 1 ? '' : 's'} found',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                    ),
+                  ),
+                ),
+            ],
             // Receipts list
             Expanded(
               child: RefreshIndicator(
@@ -360,13 +499,24 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
                     : ListView.builder(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                         itemCount: filtered.length,
-                        itemBuilder: (context, i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: ReceiptCard(
-                            receipt: filtered[i],
-                            onTap: () => _open(filtered[i]),
-                          ),
-                        ),
+                        itemBuilder: (context, i) {
+                          final receipt = filtered[i];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: ReceiptCard(
+                              receipt: receipt,
+                              isSelected: _selectionMode
+                                  ? _selectedIds.contains(receipt.id)
+                                  : null,
+                              onTap: _selectionMode
+                                  ? () => _toggleSelection(receipt.id)
+                                  : () => _open(receipt),
+                              onLongPress: _selectionMode
+                                  ? null
+                                  : () => _enterSelectionMode(receipt.id),
+                            ),
+                          );
+                        },
                       ),
               ),
             ),

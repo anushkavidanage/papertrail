@@ -7,10 +7,21 @@ import '../models/receipt.dart';
 import '../utils/formatting.dart';
 
 class ReceiptCard extends StatelessWidget {
-  const ReceiptCard({super.key, required this.receipt, this.onTap});
+  const ReceiptCard({
+    super.key,
+    required this.receipt,
+    this.onTap,
+    this.onLongPress,
+    this.isSelected,
+  });
 
   final Receipt receipt;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  /// Non-null when the list is in selection mode. `true` = this card is
+  /// selected, `false` = visible but not selected.
+  final bool? isSelected;
 
   IconData get _attachmentIcon => switch (receipt.attachmentKind) {
         AttachmentKind.image => Icons.image_outlined,
@@ -22,16 +33,26 @@ class ReceiptCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final inSelectionMode = isSelected != null;
 
     return Card(
       clipBehavior: Clip.antiAlias,
+      color: isSelected == true
+          ? scheme.primaryContainer.withValues(alpha: 0.45)
+          : null,
       child: ListTile(
         onTap: onTap,
-        leading: CircleAvatar(
-          backgroundColor: scheme.primaryContainer,
-          foregroundColor: scheme.onPrimaryContainer,
-          child: Icon(_attachmentIcon),
-        ),
+        onLongPress: onLongPress,
+        leading: inSelectionMode
+            ? Checkbox(
+                value: isSelected,
+                onChanged: onTap != null ? (_) => onTap!() : null,
+              )
+            : CircleAvatar(
+                backgroundColor: scheme.primaryContainer,
+                foregroundColor: scheme.onPrimaryContainer,
+                child: Icon(_attachmentIcon),
+              ),
         title: Text(
           receipt.title.isEmpty ? '(untitled receipt)' : receipt.title,
           maxLines: 1,
