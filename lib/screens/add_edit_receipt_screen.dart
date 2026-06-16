@@ -58,12 +58,17 @@ class _ExtraSlot {
 // ---------------------------------------------------------------------------
 
 class AddEditReceiptScreen extends StatefulWidget {
-  const AddEditReceiptScreen({super.key, this.existing});
+  const AddEditReceiptScreen({super.key, this.existing, this.duplicateFrom});
 
   /// When non-null the form edits this receipt; otherwise it creates one.
   final Receipt? existing;
 
+  /// When non-null the form is pre-filled from this receipt but saves as a
+  /// brand-new entry (new UUID, no attachments copied).
+  final Receipt? duplicateFrom;
+
   bool get isEditing => existing != null;
+  bool get isDuplicating => duplicateFrom != null;
 
   @override
   State<AddEditReceiptScreen> createState() => _AddEditReceiptScreenState();
@@ -104,30 +109,37 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
   @override
   void initState() {
     super.initState();
-    final r = widget.existing;
-    _titleController = TextEditingController(text: r?.title ?? '');
+    final r = widget.existing ?? widget.duplicateFrom;
+    final duping = widget.isDuplicating;
+
+    _titleController = TextEditingController(
+      text: duping && r != null ? 'Copy of ${r.title}' : (r?.title ?? ''),
+    );
     _amountController = TextEditingController(
       text: r != null ? r.amount.toStringAsFixed(2) : '',
     );
     _vendorController = TextEditingController(text: r?.vendor ?? '');
     _descriptionController = TextEditingController(text: r?.description ?? '');
     _currency = r?.currency ?? currencies.first;
-    _purchaseDate = r?.purchaseDate ?? DateTime.now();
+    _purchaseDate = duping ? DateTime.now() : (r?.purchaseDate ?? DateTime.now());
     _categories = {...?r?.categories};
     _flags = {...?r?.flags};
     _hasWarranty = r?.hasWarranty ?? false;
     _warrantyExpiry = r?.warrantyExpiry;
-    _existingAttachmentExt = r?.attachmentExtension;
+    // Attachments are not copied when duplicating — the new receipt starts clean.
+    _existingAttachmentExt = duping ? null : r?.attachmentExtension;
 
-    _extraSlots = (r?.extraAttachments ?? [])
-        .map(
-          (e) => _ExtraSlot(
-            id: e.id,
-            existingExtension: e.extension,
-            descriptionText: e.description,
-          ),
-        )
-        .toList();
+    _extraSlots = duping
+        ? []
+        : (r?.extraAttachments ?? [])
+            .map(
+              (e) => _ExtraSlot(
+                id: e.id,
+                existingExtension: e.extension,
+                descriptionText: e.description,
+              ),
+            )
+            .toList();
   }
 
   @override
@@ -577,7 +589,11 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isEditing ? 'Edit receipt' : 'Add receipt'),
+        title: Text(widget.isEditing
+            ? 'Edit receipt'
+            : widget.isDuplicating
+                ? 'Duplicate receipt'
+                : 'Add receipt'),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,

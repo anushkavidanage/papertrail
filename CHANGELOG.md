@@ -37,6 +37,7 @@ Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.1.0 Basic Functionality
 
++ Add duplicate receipt function [1.0.10 20260616 av]
 + Add direct camera input for receipts [1.0.9 20260616 av]
 + Add filtering options to receipt page [1.0.8 20260616 av]
 + Update Android build [1.0.7 20260616 av]
