@@ -37,6 +37,7 @@ Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.1.0 Basic Functionality
 
++ Add filtering options to receipt page [1.0.8 20260616 av]
 + Update Android build [1.0.7 20260616 av]
 + Update app logo [1.0.6 20260615 av]
 + Add additional attachment function [1.0.5 20260615 av]
