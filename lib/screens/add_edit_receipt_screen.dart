@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -106,7 +107,8 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
     final r = widget.existing;
     _titleController = TextEditingController(text: r?.title ?? '');
     _amountController = TextEditingController(
-        text: r != null ? r.amount.toStringAsFixed(2) : '');
+      text: r != null ? r.amount.toStringAsFixed(2) : '',
+    );
     _vendorController = TextEditingController(text: r?.vendor ?? '');
     _descriptionController = TextEditingController(text: r?.description ?? '');
     _currency = r?.currency ?? currencies.first;
@@ -118,11 +120,13 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
     _existingAttachmentExt = r?.attachmentExtension;
 
     _extraSlots = (r?.extraAttachments ?? [])
-        .map((e) => _ExtraSlot(
-              id: e.id,
-              existingExtension: e.extension,
-              descriptionText: e.description,
-            ))
+        .map(
+          (e) => _ExtraSlot(
+            id: e.id,
+            existingExtension: e.extension,
+            descriptionText: e.description,
+          ),
+        )
         .toList();
   }
 
@@ -161,8 +165,8 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
   Future<void> _pickWarrantyDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _warrantyExpiry ??
-          DateTime.now().add(const Duration(days: 365)),
+      initialDate:
+          _warrantyExpiry ?? DateTime.now().add(const Duration(days: 365)),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
     );
@@ -195,7 +199,8 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
         final sizeMb = (size / (1024 * 1024)).toStringAsFixed(1);
         final limitMb = maxAttachmentBytes ~/ (1024 * 1024);
         _showSnack(
-            'This PDF is $sizeMb MB. PDFs must be $limitMb MB or smaller.');
+          'This PDF is $sizeMb MB. PDFs must be $limitMb MB or smaller.',
+        );
         return;
       }
 
@@ -203,22 +208,24 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
       setState(() => _compressing = true);
       try {
         final originalBytes = await File(file.path!).readAsBytes();
-        final compressed = await compute(
-          _compressToJpeg,
-          (originalBytes, maxAttachmentBytes),
-        );
+        final compressed = await compute(_compressToJpeg, (
+          originalBytes,
+          maxAttachmentBytes,
+        ));
         if (!mounted) return;
         if (compressed == null || compressed.length > maxAttachmentBytes) {
           _showSnack(
-              'Could not compress this image under '
-              '${maxAttachmentBytes ~/ (1024 * 1024)} MB. '
-              'Try a JPEG file or a smaller image.');
+            'Could not compress this image under '
+            '${maxAttachmentBytes ~/ (1024 * 1024)} MB. '
+            'Try a JPEG file or a smaller image.',
+          );
           setState(() => _compressing = false);
           return;
         }
         final dir = await getTemporaryDirectory();
         final tmp = File(
-            '${dir.path}/pt_${DateTime.now().millisecondsSinceEpoch}.jpg');
+          '${dir.path}/pt_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        );
         await tmp.writeAsBytes(compressed);
         final origMb = (size / (1024 * 1024)).toStringAsFixed(1);
         final newMb = (compressed.length / (1024 * 1024)).toStringAsFixed(1);
@@ -249,6 +256,62 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
       _pickedPath = null;
       _pickedExt = null;
       _removeAttachment = _existingAttachmentExt != null;
+    });
+  }
+
+  Future<void> _captureAttachment() async {
+    final XFile? photo;
+    try {
+      photo = await ImagePicker().pickImage(source: ImageSource.camera);
+    } catch (e) {
+      _showSnack('Camera is not available: $e');
+      return;
+    }
+    if (photo == null) return;
+
+    final file = File(photo.path);
+    final size = await file.length();
+
+    if (size > maxAttachmentBytes) {
+      setState(() => _compressing = true);
+      try {
+        final originalBytes = await file.readAsBytes();
+        final compressed = await compute(_compressToJpeg, (
+          originalBytes,
+          maxAttachmentBytes,
+        ));
+        if (!mounted) return;
+        if (compressed == null || compressed.length > maxAttachmentBytes) {
+          _showSnack(
+            'Could not compress this photo under '
+            '${maxAttachmentBytes ~/ (1024 * 1024)} MB.',
+          );
+          setState(() => _compressing = false);
+          return;
+        }
+        final dir = await getTemporaryDirectory();
+        final tmp = File(
+          '${dir.path}/pt_cam_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        );
+        await tmp.writeAsBytes(compressed);
+        if (!mounted) return;
+        setState(() {
+          _pickedPath = tmp.path;
+          _pickedExt = 'jpg';
+          _removeAttachment = false;
+          _compressing = false;
+        });
+      } catch (e) {
+        if (mounted) setState(() => _compressing = false);
+        _showSnack('Could not process photo: $e');
+      }
+      return;
+    }
+
+    setState(() {
+      _pickedPath = photo?.path;
+      _pickedExt = 'jpg';
+      _removeAttachment = false;
     });
   }
 
@@ -290,29 +353,32 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
         final sizeMb = (size / (1024 * 1024)).toStringAsFixed(1);
         final limitMb = maxAttachmentBytes ~/ (1024 * 1024);
         _showSnack(
-            'This PDF is $sizeMb MB. PDFs must be $limitMb MB or smaller.');
+          'This PDF is $sizeMb MB. PDFs must be $limitMb MB or smaller.',
+        );
         return;
       }
 
       setState(() => _extraSlots[index].isCompressing = true);
       try {
         final originalBytes = await File(file.path!).readAsBytes();
-        final compressed = await compute(
-          _compressToJpeg,
-          (originalBytes, maxAttachmentBytes),
-        );
+        final compressed = await compute(_compressToJpeg, (
+          originalBytes,
+          maxAttachmentBytes,
+        ));
         if (!mounted) return;
         if (compressed == null || compressed.length > maxAttachmentBytes) {
           _showSnack(
-              'Could not compress this image under '
-              '${maxAttachmentBytes ~/ (1024 * 1024)} MB. '
-              'Try a JPEG file or a smaller image.');
+            'Could not compress this image under '
+            '${maxAttachmentBytes ~/ (1024 * 1024)} MB. '
+            'Try a JPEG file or a smaller image.',
+          );
           setState(() => _extraSlots[index].isCompressing = false);
           return;
         }
         final dir = await getTemporaryDirectory();
         final tmp = File(
-            '${dir.path}/pt_extra_${DateTime.now().millisecondsSinceEpoch}.jpg');
+          '${dir.path}/pt_extra_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        );
         await tmp.writeAsBytes(compressed);
         final origMb = (size / (1024 * 1024)).toStringAsFixed(1);
         final newMb = (compressed.length / (1024 * 1024)).toStringAsFixed(1);
@@ -333,6 +399,60 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
     setState(() {
       _extraSlots[index].pickedPath = file.path;
       _extraSlots[index].pickedExt = ext.isEmpty ? null : ext;
+    });
+  }
+
+  Future<void> _captureExtraPhoto(int index) async {
+    final XFile? photo;
+    try {
+      photo = await ImagePicker().pickImage(source: ImageSource.camera);
+    } catch (e) {
+      _showSnack('Camera is not available: $e');
+      return;
+    }
+    if (photo == null) return;
+
+    final file = File(photo.path);
+    final size = await file.length();
+
+    if (size > maxAttachmentBytes) {
+      setState(() => _extraSlots[index].isCompressing = true);
+      try {
+        final originalBytes = await file.readAsBytes();
+        final compressed = await compute(_compressToJpeg, (
+          originalBytes,
+          maxAttachmentBytes,
+        ));
+        if (!mounted) return;
+        if (compressed == null || compressed.length > maxAttachmentBytes) {
+          _showSnack(
+            'Could not compress this photo under '
+            '${maxAttachmentBytes ~/ (1024 * 1024)} MB.',
+          );
+          setState(() => _extraSlots[index].isCompressing = false);
+          return;
+        }
+        final dir = await getTemporaryDirectory();
+        final tmp = File(
+          '${dir.path}/pt_cam_extra_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        );
+        await tmp.writeAsBytes(compressed);
+        if (!mounted) return;
+        setState(() {
+          _extraSlots[index].pickedPath = tmp.path;
+          _extraSlots[index].pickedExt = 'jpg';
+          _extraSlots[index].isCompressing = false;
+        });
+      } catch (e) {
+        if (mounted) setState(() => _extraSlots[index].isCompressing = false);
+        _showSnack('Could not process photo: $e');
+      }
+      return;
+    }
+
+    setState(() {
+      _extraSlots[index].pickedPath = photo?.path;
+      _extraSlots[index].pickedExt = 'jpg';
     });
   }
 
@@ -357,8 +477,9 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text),
             child: const Text('Add'),
@@ -374,8 +495,9 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
 
   void _showSnack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   // -------------------------------------------------------------------------
@@ -389,8 +511,9 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
       return;
     }
 
-    final amount =
-        double.parse(_amountController.text.trim().replaceAll(',', ''));
+    final amount = double.parse(
+      _amountController.text.trim().replaceAll(',', ''),
+    );
     final now = DateTime.now();
     final existing = widget.existing;
 
@@ -399,11 +522,13 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
     final extraPaths = <String, String>{};
     for (final slot in _extraSlots) {
       if (!slot.hasFile) continue;
-      extraAttachments.add(ExtraAttachment(
-        id: slot.id,
-        extension: slot.effectiveExtension!,
-        description: slot.description.text.trim(),
-      ));
+      extraAttachments.add(
+        ExtraAttachment(
+          id: slot.id,
+          extension: slot.effectiveExtension!,
+          description: slot.description.text.trim(),
+        ),
+      );
       if (slot.pickedPath != null) {
         extraPaths[slot.id] = slot.pickedPath!;
       }
@@ -477,8 +602,9 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
                       hintText: 'e.g. Coffee machine',
                       border: OutlineInputBorder(),
                     ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Enter a title' : null,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Enter a title'
+                        : null,
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -489,14 +615,16 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
                         child: TextFormField(
                           controller: _amountController,
                           keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
+                            decimal: true,
+                          ),
                           decoration: const InputDecoration(
                             labelText: 'Amount *',
                             border: OutlineInputBorder(),
                           ),
                           validator: (v) {
                             final parsed = double.tryParse(
-                                (v ?? '').trim().replaceAll(',', ''));
+                              (v ?? '').trim().replaceAll(',', ''),
+                            );
                             if (parsed == null) return 'Enter a number';
                             if (parsed < 0) return 'Must be ≥ 0';
                             return null;
@@ -512,8 +640,10 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
                             border: OutlineInputBorder(),
                           ),
                           items: currencies
-                              .map((c) =>
-                                  DropdownMenuItem(value: c, child: Text(c)))
+                              .map(
+                                (c) =>
+                                    DropdownMenuItem(value: c, child: Text(c)),
+                              )
                               .toList(),
                           onChanged: (v) =>
                               setState(() => _currency = v ?? _currency),
@@ -585,6 +715,9 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
                     pickedPath: _pickedPath,
                     onPick: _pickAttachment,
                     onClear: _clearAttachment,
+                    onCamera: (Platform.isAndroid || Platform.isIOS)
+                        ? _captureAttachment
+                        : null,
                     isCompressing: _compressing,
                   ),
                   const SizedBox(height: 24),
@@ -593,13 +726,17 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
                     onAdd: _addExtraSlot,
                     onRemove: _removeExtraSlot,
                     onPick: _pickExtraFile,
+                    onCamera: (Platform.isAndroid || Platform.isIOS)
+                        ? _captureExtraPhoto
+                        : null,
                   ),
                   const SizedBox(height: 32),
                   FilledButton.icon(
                     onPressed: _saving ? null : _save,
                     icon: const Icon(Icons.save),
                     label: Text(
-                        widget.isEditing ? 'Save changes' : 'Save receipt'),
+                      widget.isEditing ? 'Save changes' : 'Save receipt',
+                    ),
                   ),
                   const SizedBox(height: 48),
                 ],
@@ -744,6 +881,7 @@ class _AttachmentSection extends StatelessWidget {
     required this.pickedPath,
     required this.onPick,
     required this.onClear,
+    this.onCamera,
     this.isCompressing = false,
   });
 
@@ -751,6 +889,9 @@ class _AttachmentSection extends StatelessWidget {
   final String? pickedPath;
   final VoidCallback onPick;
   final VoidCallback onClear;
+
+  /// Non-null only on Android / iOS — shows a "Take photo" button.
+  final VoidCallback? onCamera;
   final bool isCompressing;
 
   @override
@@ -788,9 +929,7 @@ class _AttachmentSection extends StatelessWidget {
       preview = Row(
         children: [
           Icon(
-            kind == AttachmentKind.pdf
-                ? Icons.picture_as_pdf
-                : Icons.image,
+            kind == AttachmentKind.pdf ? Icons.picture_as_pdf : Icons.image,
             color: Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(width: 8),
@@ -821,21 +960,27 @@ class _AttachmentSection extends StatelessWidget {
         const SizedBox(height: 12),
         preview,
         const SizedBox(height: 8),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
+            if (onCamera != null)
+              OutlinedButton.icon(
+                onPressed: isCompressing ? null : onCamera,
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: const Text('Take photo'),
+              ),
             OutlinedButton.icon(
               onPressed: isCompressing ? null : onPick,
               icon: const Icon(Icons.attach_file),
-              label: Text(hasAttachment ? 'Replace' : 'Add file'),
+              label: Text(hasAttachment ? 'Replace file' : 'Add file'),
             ),
-            if (hasAttachment && !isCompressing) ...[
-              const SizedBox(width: 8),
+            if (hasAttachment && !isCompressing)
               TextButton.icon(
                 onPressed: onClear,
                 icon: const Icon(Icons.delete_outline),
                 label: const Text('Remove'),
               ),
-            ],
           ],
         ),
       ],
@@ -853,6 +998,7 @@ class _ExtraAttachmentsSection extends StatelessWidget {
     required this.onAdd,
     required this.onRemove,
     required this.onPick,
+    this.onCamera,
   });
 
   final List<_ExtraSlot> slots;
@@ -860,13 +1006,18 @@ class _ExtraAttachmentsSection extends StatelessWidget {
   final void Function(int index) onRemove;
   final Future<void> Function(int index) onPick;
 
+  /// Non-null only on Android / iOS — passed down to each slot tile.
+  final Future<void> Function(int index)? onCamera;
+
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Additional Files',
-            style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          'Additional Files',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         const SizedBox(height: 4),
         Text(
           'Attach supplementary files such as a warranty card or invoice. '
@@ -874,12 +1025,16 @@ class _ExtraAttachmentsSection extends StatelessWidget {
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 12),
-        ...List.generate(slots.length, (i) => _ExtraSlotTile(
-              index: i,
-              slot: slots[i],
-              onRemove: () => onRemove(i),
-              onPick: () => onPick(i),
-            )),
+        ...List.generate(
+          slots.length,
+          (i) => _ExtraSlotTile(
+            index: i,
+            slot: slots[i],
+            onRemove: () => onRemove(i),
+            onPick: () => onPick(i),
+            onCamera: onCamera != null ? () => onCamera!(i) : null,
+          ),
+        ),
         TextButton.icon(
           onPressed: onAdd,
           icon: const Icon(Icons.add),
@@ -896,12 +1051,16 @@ class _ExtraSlotTile extends StatelessWidget {
     required this.slot,
     required this.onRemove,
     required this.onPick,
+    this.onCamera,
   });
 
   final int index;
   final _ExtraSlot slot;
   final VoidCallback onRemove;
   final VoidCallback onPick;
+
+  /// Non-null only on Android / iOS.
+  final VoidCallback? onCamera;
 
   @override
   Widget build(BuildContext context) {
@@ -938,9 +1097,7 @@ class _ExtraSlotTile extends StatelessWidget {
       preview = Row(
         children: [
           Icon(
-            kind == AttachmentKind.pdf
-                ? Icons.picture_as_pdf
-                : Icons.image,
+            kind == AttachmentKind.pdf ? Icons.picture_as_pdf : Icons.image,
             color: Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(width: 8),
@@ -969,8 +1126,10 @@ class _ExtraSlotTile extends StatelessWidget {
           children: [
             Row(
               children: [
-                Text('File ${index + 1}',
-                    style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  'File ${index + 1}',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close, size: 18),
@@ -983,10 +1142,22 @@ class _ExtraSlotTile extends StatelessWidget {
             const SizedBox(height: 8),
             preview,
             const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: slot.isCompressing ? null : onPick,
-              icon: const Icon(Icons.attach_file),
-              label: Text(hasFile ? 'Replace' : 'Choose file'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (onCamera != null)
+                  OutlinedButton.icon(
+                    onPressed: slot.isCompressing ? null : onCamera,
+                    icon: const Icon(Icons.camera_alt_outlined),
+                    label: const Text('Take photo'),
+                  ),
+                OutlinedButton.icon(
+                  onPressed: slot.isCompressing ? null : onPick,
+                  icon: const Icon(Icons.attach_file),
+                  label: Text(hasFile ? 'Replace file' : 'Choose file'),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             TextFormField(

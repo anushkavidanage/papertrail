@@ -7,6 +7,7 @@ import Foundation
 
 import fast_rsa
 import file_picker
+import file_selector_macos
 import flutter_appauth
 import flutter_secure_storage_darwin
 import oidc_macos
@@ -20,6 +21,7 @@ import window_to_front
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FastRsaPlugin.register(with: registry.registrar(forPlugin: "FastRsaPlugin"))
   FilePickerPlugin.register(with: registry.registrar(forPlugin: "FilePickerPlugin"))
+  FileSelectorPlugin.register(with: registry.registrar(forPlugin: "FileSelectorPlugin"))
   FlutterAppauthPlugin.register(with: registry.registrar(forPlugin: "FlutterAppauthPlugin"))
   FlutterSecureStorageDarwinPlugin.register(with: registry.registrar(forPlugin: "FlutterSecureStorageDarwinPlugin"))
   OidcPlugin.register(with: registry.registrar(forPlugin: "OidcPlugin"))

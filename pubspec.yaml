@@ -1,7 +1,7 @@
 name: papertrail
 description: "Track your purchase receipts, stored securely in your own Solid Pod."
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
-version: 1.0.8+1
+version: 1.0.9+1
 
 environment:
   sdk: ^3.12.0
@@ -20,6 +20,9 @@ dependencies:
 
   # Pick receipt photos and PDF documents from the device.
   file_picker: ^11.0.2
+
+  # Take photos directly from the device camera on Android and iOS.
+  image_picker: ^1.1.0
 
   # Open downloaded PDF attachments with the platform's default viewer.
   open_filex: ^4.7.0
