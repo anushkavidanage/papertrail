@@ -1,7 +1,8 @@
-/// Receipts tab: searchable, filterable list of every stored receipt.
+/// Receipts tab: searchable, filterable, sortable list of every stored receipt.
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/receipt.dart';
 import '../services/receipt_store.dart';
@@ -9,6 +10,25 @@ import '../utils/csv_exporter.dart';
 import '../widgets/locked_backdrop.dart';
 import '../widgets/receipt_card.dart';
 import 'receipt_detail_screen.dart';
+
+enum _SortOption {
+  dateDesc,
+  dateAsc,
+  amountDesc,
+  amountAsc;
+
+  String get label => switch (this) {
+        dateDesc => 'Date (newest first)',
+        dateAsc => 'Date (oldest first)',
+        amountDesc => 'Amount (highest first)',
+        amountAsc => 'Amount (lowest first)',
+      };
+
+  IconData get icon => switch (this) {
+        dateDesc || dateAsc => Icons.calendar_today_outlined,
+        amountDesc || amountAsc => Icons.attach_money_outlined,
+      };
+}
 
 class AllReceiptsView extends StatefulWidget {
   const AllReceiptsView({super.key});
@@ -19,13 +39,27 @@ class AllReceiptsView extends StatefulWidget {
 
 class _AllReceiptsViewState extends State<AllReceiptsView> {
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _minCtrl = TextEditingController();
+  final TextEditingController _maxCtrl = TextEditingController();
+
   String _query = '';
   String? _categoryFilter;
+  _SortOption _sort = _SortOption.dateDesc;
+  double? _minAmount;
+  double? _maxAmount;
   bool _exporting = false;
+
+  bool get _hasActiveFilter =>
+      _query.trim().isNotEmpty ||
+      _categoryFilter != null ||
+      _minAmount != null ||
+      _maxAmount != null;
 
   @override
   void dispose() {
     _searchController.dispose();
+    _minCtrl.dispose();
+    _maxCtrl.dispose();
     super.dispose();
   }
 
@@ -34,10 +68,12 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
 
   List<Receipt> _apply(List<Receipt> all) {
     final q = _query.trim().toLowerCase();
-    return all.where((r) {
+    var result = all.where((r) {
       if (_categoryFilter != null && !r.categories.contains(_categoryFilter)) {
         return false;
       }
+      if (_minAmount != null && r.amount < _minAmount!) return false;
+      if (_maxAmount != null && r.amount > _maxAmount!) return false;
       if (q.isEmpty) return true;
       return r.title.toLowerCase().contains(q) ||
           r.vendor.toLowerCase().contains(q) ||
@@ -45,6 +81,19 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
           r.categories.any((c) => c.toLowerCase().contains(q)) ||
           r.flags.any((f) => f.toLowerCase().contains(q));
     }).toList();
+
+    switch (_sort) {
+      case _SortOption.dateDesc:
+        result.sort((a, b) => b.purchaseDate.compareTo(a.purchaseDate));
+      case _SortOption.dateAsc:
+        result.sort((a, b) => a.purchaseDate.compareTo(b.purchaseDate));
+      case _SortOption.amountDesc:
+        result.sort((a, b) => b.amount.compareTo(a.amount));
+      case _SortOption.amountAsc:
+        result.sort((a, b) => a.amount.compareTo(b.amount));
+    }
+
+    return result;
   }
 
   void _open(Receipt receipt) {
@@ -80,6 +129,107 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
     }
   }
 
+  Widget _sortButton(BuildContext context) {
+    final active = _sort != _SortOption.dateDesc;
+    return PopupMenuButton<_SortOption>(
+      icon: Icon(
+        Icons.swap_vert,
+        color: active ? Theme.of(context).colorScheme.primary : null,
+      ),
+      tooltip: 'Sort',
+      onSelected: (opt) => setState(() => _sort = opt),
+      itemBuilder: (_) => _SortOption.values
+          .map(
+            (opt) => PopupMenuItem<_SortOption>(
+              value: opt,
+              child: Row(
+                children: [
+                  Icon(opt.icon, size: 18),
+                  const SizedBox(width: 10),
+                  Text(opt.label),
+                  if (_sort == opt) ...[
+                    const Spacer(),
+                    Icon(
+                      Icons.check,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Widget _amountRow(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _minCtrl,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+              decoration: InputDecoration(
+                labelText: 'Min amount',
+                border: const OutlineInputBorder(),
+                isDense: true,
+                suffixIcon: _minAmount != null
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 16),
+                        padding: EdgeInsets.zero,
+                        onPressed: () {
+                          _minCtrl.clear();
+                          setState(() => _minAmount = null);
+                        },
+                      )
+                    : null,
+              ),
+              onChanged: (v) => setState(() => _minAmount = double.tryParse(v)),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text('–', style: theme.textTheme.bodyLarge),
+          ),
+          Expanded(
+            child: TextField(
+              controller: _maxCtrl,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+              decoration: InputDecoration(
+                labelText: 'Max amount',
+                border: const OutlineInputBorder(),
+                isDense: true,
+                suffixIcon: _maxAmount != null
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 16),
+                        padding: EdgeInsets.zero,
+                        onPressed: () {
+                          _maxCtrl.clear();
+                          setState(() => _maxAmount = null);
+                        },
+                      )
+                    : null,
+              ),
+              onChanged: (v) => setState(() => _maxAmount = double.tryParse(v)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = ReceiptStore.instance;
@@ -91,6 +241,7 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
 
         return Column(
           children: [
+            // Search + sort + export row
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 4, 8),
               child: Row(
@@ -116,6 +267,7 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
                       ),
                     ),
                   ),
+                  _sortButton(context),
                   _exporting
                       ? const Padding(
                           padding: EdgeInsets.all(12),
@@ -130,12 +282,16 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
                           tooltip: filtered.isEmpty
                               ? 'No receipts to export'
                               : 'Export ${filtered.length} receipt${filtered.length == 1 ? '' : 's'} to CSV',
-                          onPressed:
-                              filtered.isEmpty ? null : () => _exportCsv(filtered),
+                          onPressed: filtered.isEmpty
+                              ? null
+                              : () => _exportCsv(filtered),
                         ),
                 ],
               ),
             ),
+            // Amount range filter row
+            _amountRow(context),
+            // Category filter chips
             if (categories.isNotEmpty)
               SizedBox(
                 height: 44,
@@ -166,6 +322,24 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
                   ],
                 ),
               ),
+            // Result count summary when any filter is active
+            if (_hasActiveFilter)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    filtered.isEmpty
+                        ? 'No receipts match your filters.'
+                        : '${filtered.length} receipt${filtered.length == 1 ? '' : 's'} found',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ),
+              ),
+            // Receipts list
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _refresh,
