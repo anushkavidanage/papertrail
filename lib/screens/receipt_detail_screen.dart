@@ -35,6 +35,13 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
     // The store updates itself on save; nothing else to do here.
   }
 
+  Future<void> _duplicate(Receipt receipt) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+          builder: (_) => AddEditReceiptScreen(duplicateFrom: receipt)),
+    );
+  }
+
   Future<void> _delete(Receipt receipt) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -88,6 +95,11 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
           appBar: AppBar(
             title: const Text('Receipt'),
             actions: [
+              IconButton(
+                tooltip: 'Duplicate',
+                icon: const Icon(Icons.content_copy_outlined),
+                onPressed: _busy ? null : () => _duplicate(receipt),
+              ),
               IconButton(
                 tooltip: 'Edit',
                 icon: const Icon(Icons.edit_outlined),
