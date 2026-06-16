@@ -21,6 +21,9 @@ dependencies:
   # Pick receipt photos and PDF documents from the device.
   file_picker: ^11.0.2
 
+  # Take photos directly from the device camera on Android and iOS.
+  image_picker: ^1.1.0
+
   # Open downloaded PDF attachments with the platform's default viewer.
   open_filex: ^4.7.0
 
