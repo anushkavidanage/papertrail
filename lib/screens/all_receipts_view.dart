@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../models/receipt.dart';
 import '../services/receipt_store.dart';
+import '../utils/csv_exporter.dart';
 import '../widgets/locked_backdrop.dart';
 import '../widgets/receipt_card.dart';
 import 'receipt_detail_screen.dart';
@@ -20,6 +21,7 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
   String? _categoryFilter;
+  bool _exporting = false;
 
   @override
   void dispose() {
@@ -52,6 +54,32 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
     );
   }
 
+  Future<void> _exportCsv(List<Receipt> receipts) async {
+    setState(() => _exporting = true);
+    try {
+      final path = await exportReceiptsToCsv(receipts);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Saved: $path'),
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(
+            label: 'OK',
+            onPressed: () =>
+                ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Export failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = ReceiptStore.instance;
@@ -64,25 +92,48 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
         return Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (v) => setState(() => _query = v),
-                decoration: InputDecoration(
-                  hintText: 'Search receipts',
-                  prefixIcon: const Icon(Icons.search),
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                  suffixIcon: _query.isEmpty
-                      ? null
+              padding: const EdgeInsets.fromLTRB(16, 16, 4, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (v) => setState(() => _query = v),
+                      decoration: InputDecoration(
+                        hintText: 'Search receipts',
+                        prefixIcon: const Icon(Icons.search),
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                        suffixIcon: _query.isEmpty
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _query = '');
+                                },
+                              ),
+                      ),
+                    ),
+                  ),
+                  _exporting
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
                       : IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _query = '');
-                          },
+                          icon: const Icon(Icons.download_outlined),
+                          tooltip: filtered.isEmpty
+                              ? 'No receipts to export'
+                              : 'Export ${filtered.length} receipt${filtered.length == 1 ? '' : 's'} to CSV',
+                          onPressed:
+                              filtered.isEmpty ? null : () => _exportCsv(filtered),
                         ),
-                ),
+                ],
               ),
             ),
             if (categories.isNotEmpty)
