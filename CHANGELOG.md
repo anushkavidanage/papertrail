@@ -37,6 +37,7 @@ Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.1.0 Basic Functionality
 
++ Show receipt total by category [1.0.12 20260617 av]
 + Bulk select and delete receipts [1.0.11 20260617 av]
 + Add duplicate receipt function [1.0.10 20260616 av]
 + Add direct camera input for receipts [1.0.9 20260616 av]

@@ -69,6 +69,7 @@ const List<String> defaultCategories = [
   'Pets',
   'Travel',
   'Education',
+  'Gas',
   'Other',
 ];
 
