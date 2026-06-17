@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../models/receipt.dart';
 import '../services/receipt_store.dart';
 import '../utils/csv_exporter.dart';
+import '../utils/formatting.dart';
 import '../widgets/locked_backdrop.dart';
 import '../widgets/receipt_card.dart';
 import 'receipt_detail_screen.dart';
@@ -18,16 +19,16 @@ enum _SortOption {
   amountAsc;
 
   String get label => switch (this) {
-        dateDesc => 'Date (newest first)',
-        dateAsc => 'Date (oldest first)',
-        amountDesc => 'Amount (highest first)',
-        amountAsc => 'Amount (lowest first)',
-      };
+    dateDesc => 'Date (newest first)',
+    dateAsc => 'Date (oldest first)',
+    amountDesc => 'Amount (highest first)',
+    amountAsc => 'Amount (lowest first)',
+  };
 
   IconData get icon => switch (this) {
-        dateDesc || dateAsc => Icons.calendar_today_outlined,
-        amountDesc || amountAsc => Icons.attach_money_outlined,
-      };
+    dateDesc || dateAsc => Icons.calendar_today_outlined,
+    amountDesc || amountAsc => Icons.attach_money_outlined,
+  };
 }
 
 class AllReceiptsView extends StatefulWidget {
@@ -47,6 +48,8 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
   _SortOption _sort = _SortOption.dateDesc;
   double? _minAmount;
   double? _maxAmount;
+  DateTime? _fromDate;
+  DateTime? _toDate;
   bool _exporting = false;
 
   // Bulk-selection state
@@ -58,7 +61,9 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
       _query.trim().isNotEmpty ||
       _categoryFilter != null ||
       _minAmount != null ||
-      _maxAmount != null;
+      _maxAmount != null ||
+      _fromDate != null ||
+      _toDate != null;
 
   @override
   void dispose() {
@@ -79,6 +84,10 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
       }
       if (_minAmount != null && r.amount < _minAmount!) return false;
       if (_maxAmount != null && r.amount > _maxAmount!) return false;
+      if (_fromDate != null && r.purchaseDate.isBefore(_fromDate!))
+        return false;
+      if (_toDate != null && r.purchaseDate.isAfter(_toDateInclusive))
+        return false;
       if (q.isEmpty) return true;
       return r.title.toLowerCase().contains(q) ||
           r.vendor.toLowerCase().contains(q) ||
@@ -101,10 +110,21 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
     return result;
   }
 
+  /// Returns a formatted total for [receipts], grouped by currency.
+  /// Single currency → "AUD 1,234.56". Multiple → "AUD 500.00 + USD 200.00".
+  String _filteredTotal(List<Receipt> receipts) {
+    final totals = <String, double>{};
+    for (final r in receipts) {
+      totals[r.currency] = (totals[r.currency] ?? 0) + r.amount;
+    }
+    return totals.entries.map((e) => formatMoney(e.value, e.key)).join(' + ');
+  }
+
   void _open(Receipt receipt) {
     Navigator.of(context).push(
       MaterialPageRoute(
-          builder: (_) => ReceiptDetailScreen(receiptId: receipt.id)),
+        builder: (_) => ReceiptDetailScreen(receiptId: receipt.id),
+      ),
     );
   }
 
@@ -126,9 +146,9 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -168,8 +188,9 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
 
   Future<void> _deleteSelected() async {
     final store = ReceiptStore.instance;
-    final toDelete =
-        store.receipts.where((r) => _selectedIds.contains(r.id)).toList();
+    final toDelete = store.receipts
+        .where((r) => _selectedIds.contains(r.id))
+        .toList();
     final count = toDelete.length;
 
     final confirm = await showDialog<bool>(
@@ -201,9 +222,9 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
       _exitSelectionMode();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Delete failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
     } finally {
       if (mounted) setState(() => _deletingMany = false);
     }
@@ -236,8 +257,8 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
               onPressed: filtered.isEmpty
                   ? null
                   : allSelected
-                      ? () => setState(() => _selectedIds.clear())
-                      : () => _selectAll(filtered),
+                  ? () => setState(() => _selectedIds.clear())
+                  : () => _selectAll(filtered),
               child: Text(allSelected ? 'Deselect all' : 'Select all'),
             ),
             _deletingMany
@@ -305,8 +326,9 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
           Expanded(
             child: TextField(
               controller: _minCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
               ],
@@ -314,6 +336,7 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
                 labelText: 'Min amount',
                 border: const OutlineInputBorder(),
                 isDense: true,
+                // contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 suffixIcon: _minAmount != null
                     ? IconButton(
                         icon: const Icon(Icons.clear, size: 16),
@@ -335,8 +358,9 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
           Expanded(
             child: TextField(
               controller: _maxCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
               ],
@@ -344,6 +368,7 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
                 labelText: 'Max amount',
                 border: const OutlineInputBorder(),
                 isDense: true,
+                // contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 suffixIcon: _maxAmount != null
                     ? IconButton(
                         icon: const Icon(Icons.clear, size: 16),
@@ -357,6 +382,98 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
               ),
               onChanged: (v) => setState(() => _maxAmount = double.tryParse(v)),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// End-of-day boundary so the "to" date filter is inclusive.
+  DateTime get _toDateInclusive => _toDate != null
+      ? DateTime(_toDate!.year, _toDate!.month, _toDate!.day, 23, 59, 59)
+      : DateTime(9999);
+
+  Future<void> _pickFromDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _fromDate ?? _toDate ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: _toDate ?? DateTime(2100),
+      helpText: 'From date',
+    );
+    if (picked != null) setState(() => _fromDate = picked);
+  }
+
+  Future<void> _pickToDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _toDate ?? _fromDate ?? DateTime.now(),
+      firstDate: _fromDate ?? DateTime(2000),
+      lastDate: DateTime(2100),
+      helpText: 'To date',
+    );
+    if (picked != null) setState(() => _toDate = picked);
+  }
+
+  Widget _dateRangeRow(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    Widget datePill({
+      required String label,
+      required DateTime? value,
+      required VoidCallback onTap,
+      required VoidCallback? onClear,
+    }) {
+      final hasValue = value != null;
+      return Expanded(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(4),
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: label,
+              border: const OutlineInputBorder(),
+              isDense: true,
+              // contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              suffixIcon: hasValue
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 16),
+                      padding: EdgeInsets.zero,
+                      onPressed: onClear,
+                    )
+                  : const Icon(Icons.calendar_today_outlined, size: 16),
+            ),
+            child: Text(
+              hasValue ? formatDate(value) : '',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: hasValue ? null : scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        children: [
+          datePill(
+            label: 'From date',
+            value: _fromDate,
+            onTap: _pickFromDate,
+            onClear: () => setState(() => _fromDate = null),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text('–', style: theme.textTheme.bodyLarge),
+          ),
+          datePill(
+            label: 'To date',
+            value: _toDate,
+            onTap: _pickToDate,
+            onClear: () => setState(() => _toDate = null),
           ),
         ],
       ),
@@ -428,6 +545,8 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
               ),
               // Amount range filter row
               _amountRow(context),
+              // Date range filter row
+              _dateRangeRow(context),
               // Category filter chips
               if (categories.isNotEmpty)
                 SizedBox(
@@ -452,7 +571,8 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
                             label: Text(c),
                             selected: _categoryFilter == c,
                             onSelected: (sel) => setState(
-                                () => _categoryFilter = sel ? c : null),
+                              () => _categoryFilter = sel ? c : null,
+                            ),
                           ),
                         ),
                       ),
@@ -468,12 +588,10 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
                     child: Text(
                       filtered.isEmpty
                           ? 'No receipts match your filters.'
-                          : '${filtered.length} receipt${filtered.length == 1 ? '' : 's'} found',
+                          : '${filtered.length} receipt${filtered.length == 1 ? '' : 's'} · Total: ${_filteredTotal(filtered)}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ),
