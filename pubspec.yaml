@@ -39,6 +39,11 @@ dependencies:
   # Pure-Dart image decoding / re-encoding used to compress oversized photos.
   image: ^4.8.0
 
+  # Local push notifications for warranty reminders.
+  flutter_local_notifications: ^18.0.0
+  flutter_timezone: ^1.0.4
+  timezone: ^0.9.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
