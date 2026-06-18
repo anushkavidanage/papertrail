@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   fast_rsa
   file_selector_linux
   flutter_secure_storage_linux
+  flutter_timezone
   oidc_linux
   printing
   url_launcher_linux

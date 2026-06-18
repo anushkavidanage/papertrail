@@ -37,17 +37,6 @@ subprojects {
     }
 }
 
-// Align Kotlin JVM target with Java for all library plugins (e.g. flutter_timezone
-// ships with Kotlin defaulting to 1.8 while its Java compileOptions use 11).
-subprojects {
-    plugins.withId("com.android.library") {
-        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
-            compilerOptions {
-                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
-            }
-        }
-    }
-}
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
