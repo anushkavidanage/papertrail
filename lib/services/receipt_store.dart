@@ -5,9 +5,12 @@
 /// proxy to [PodService] and then notify listeners.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../models/receipt.dart';
+import 'notification_service.dart';
 import 'pod_service.dart';
 
 enum StoreStatus { idle, loading, ready, error }
@@ -96,6 +99,10 @@ class ReceiptStore extends ChangeNotifier {
     _receipts.sort((a, b) => b.purchaseDate.compareTo(a.purchaseDate));
     _status = StoreStatus.ready;
     notifyListeners();
+    // Fire-and-forget: reschedule (or cancel) the warranty reminder.
+    unawaited(
+      NotificationService.instance.scheduleWarrantyReminder(receipt),
+    );
   }
 
   /// Delete [receipt] from the Pod and the in-memory list.
@@ -103,14 +110,21 @@ class ReceiptStore extends ChangeNotifier {
     await _pod.deleteReceipt(receipt);
     _receipts.removeWhere((r) => r.id == receipt.id);
     notifyListeners();
+    unawaited(
+      NotificationService.instance.cancelWarrantyReminder(receipt.id),
+    );
   }
 
   /// Delete multiple receipts from the Pod and the in-memory list.
   Future<void> deleteMany(Iterable<Receipt> receipts) async {
+    final ids = receipts.map((r) => r.id).toList();
     for (final r in receipts) {
       await _pod.deleteReceipt(r);
       _receipts.removeWhere((x) => x.id == r.id);
     }
     notifyListeners();
+    for (final id in ids) {
+      unawaited(NotificationService.instance.cancelWarrantyReminder(id));
+    }
   }
 }

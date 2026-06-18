@@ -1,7 +1,7 @@
 name: papertrail
 description: "Track your purchase receipts, stored securely in your own Solid Pod."
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
-version: 1.0.12+1
+version: 1.0.13+1
 
 environment:
   sdk: ^3.12.0
@@ -38,6 +38,11 @@ dependencies:
 
   # Pure-Dart image decoding / re-encoding used to compress oversized photos.
   image: ^4.8.0
+
+  # Local push notifications for warranty reminders.
+  flutter_local_notifications: ^18.0.0
+  flutter_timezone: ^1.0.4
+  timezone: ^0.9.0
 
 dev_dependencies:
   flutter_test:
