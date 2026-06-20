@@ -37,13 +37,13 @@ class AIService extends ChangeNotifier {
   InferenceModel? _model;
   InferenceChat? _insightChat;
 
-  /// LiteRT-LM has no Linux binary as of flutter_gemma_litertlm 1.0.x.
+  /// LiteRT-LM supports Android/iOS/macOS. Windows is excluded because
+  /// background_downloader's Task.split() mismaps the absolute
+  /// %LOCALAPPDATA%\flutter_gemma path on Windows, leaving the model file
+  /// at an unexpected location so getActiveModel() always fails.
   static bool get _platformSupported {
     if (kIsWeb) return false;
-    return Platform.isAndroid ||
-        Platform.isIOS ||
-        Platform.isMacOS ||
-        Platform.isWindows;
+    return Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
   }
 
   /// Call once from [main] before [runApp]. No-ops on unsupported platforms
