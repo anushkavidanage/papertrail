@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   fast_rsa
   file_selector_windows
+  flutter_gemma
   flutter_secure_storage_windows
   flutter_timezone
   oidc_windows

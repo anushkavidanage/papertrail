@@ -9,9 +9,11 @@ import fast_rsa
 import file_picker
 import file_selector_macos
 import flutter_appauth
+import flutter_gemma
 import flutter_local_notifications
 import flutter_secure_storage_darwin
 import flutter_timezone
+import large_file_handler
 import oidc_macos
 import package_info_plus
 import printing
@@ -25,9 +27,11 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FilePickerPlugin.register(with: registry.registrar(forPlugin: "FilePickerPlugin"))
   FileSelectorPlugin.register(with: registry.registrar(forPlugin: "FileSelectorPlugin"))
   FlutterAppauthPlugin.register(with: registry.registrar(forPlugin: "FlutterAppauthPlugin"))
+  FlutterGemmaPlugin.register(with: registry.registrar(forPlugin: "FlutterGemmaPlugin"))
   FlutterLocalNotificationsPlugin.register(with: registry.registrar(forPlugin: "FlutterLocalNotificationsPlugin"))
   FlutterSecureStorageDarwinPlugin.register(with: registry.registrar(forPlugin: "FlutterSecureStorageDarwinPlugin"))
   FlutterTimezonePlugin.register(with: registry.registrar(forPlugin: "FlutterTimezonePlugin"))
+  LargeFileHandlerPlugin.register(with: registry.registrar(forPlugin: "LargeFileHandlerPlugin"))
   OidcPlugin.register(with: registry.registrar(forPlugin: "OidcPlugin"))
   FPPPackageInfoPlusPlugin.register(with: registry.registrar(forPlugin: "FPPPackageInfoPlusPlugin"))
   PrintingPlugin.register(with: registry.registrar(forPlugin: "PrintingPlugin"))

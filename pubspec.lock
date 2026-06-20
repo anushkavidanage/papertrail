@@ -33,6 +33,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.1"
+  background_downloader:
+    dependency: transitive
+    description:
+      name: background_downloader
+      sha256: aceacec2b2a72ec3a8862ab5895fcbbc71ab33765f3619d57963f3110dd268e3
+      url: "https://pub.dev"
+    source: hosted
+    version: "9.5.5"
   barcode:
     dependency: transitive
     description:
@@ -318,6 +326,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "10.3.0+2"
+  flutter_gemma:
+    dependency: "direct main"
+    description:
+      name: flutter_gemma
+      sha256: "0a92be6f535e74bfd7f7020ba792a42bf630fb85fa30326bc8689fff499c2ee7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.1"
+  flutter_gemma_litertlm:
+    dependency: "direct main"
+    description:
+      name: flutter_gemma_litertlm
+      sha256: "462042460748c0cb4bec21ee4a1325e6636ea02fc94c0272afca780afe48e904"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.1"
   flutter_launcher_icons:
     dependency: "direct dev"
     description:
@@ -613,6 +637,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.1"
+  large_file_handler:
+    dependency: transitive
+    description:
+      name: large_file_handler
+      sha256: "234eda71f32b6a772349299d0ed185a5f3e10c59235576fd178f4d720dd956ec"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.0"
   leak_tracker:
     dependency: transitive
     description:
@@ -709,6 +741,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.0"
+  mutex:
+    dependency: transitive
+    description:
+      name: mutex
+      sha256: "8827da25de792088eb33e572115a5eb0d61d61a3c01acbc8bcbe76ed78f1a1f2"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.0"
   nonce:
     dependency: transitive
     description:
@@ -1062,7 +1102,7 @@ packages:
     source: hosted
     version: "6.1.0"
   shared_preferences:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: shared_preferences
       sha256: c3025c5534b01739267eb7d76959bbc25a6d10f6988e1c2a3036940133dd10bf
