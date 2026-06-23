@@ -91,7 +91,20 @@ class _AIAssistantViewState extends State<AIAssistantView> {
       });
       _scrollToBottom();
     }
-    if (mounted) setState(() => _chatStreaming = false);
+    if (mounted) {
+      setState(() {
+        _chatStreaming = false;
+        // If no tokens were received, replace the empty bubble with an error.
+        if (_messages.isNotEmpty &&
+            !_messages.last.isUser &&
+            _messages.last.text.isEmpty) {
+          _messages[_messages.length - 1] = const _ChatMessage(
+            text: "Sorry, I couldn't generate a response. Please try again.",
+            isUser: false,
+          );
+        }
+      });
+    }
   }
 
   void _clearChat() {
@@ -295,7 +308,11 @@ class _AIAssistantViewState extends State<AIAssistantView> {
             left: 12,
             right: 12,
             top: 8,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+            // When the keyboard is hidden, add enough clearance for the
+            // floating "Add receipt" FAB (56 px tall + 16 px margin = 72 px).
+            bottom: MediaQuery.of(context).viewInsets.bottom > 0
+                ? MediaQuery.of(context).viewInsets.bottom + 12
+                : 88,
           ),
           child: Row(
             children: [
