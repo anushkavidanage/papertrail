@@ -2,7 +2,10 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_gemma/flutter_gemma.dart';
 
+import '../models/ai_model_config.dart';
 import '../models/receipt.dart';
 import '../services/ai_service.dart';
 import '../services/receipt_store.dart';
@@ -94,7 +97,6 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     if (mounted) {
       setState(() {
         _chatStreaming = false;
-        // If no tokens were received, replace the empty bubble with an error.
         if (_messages.isNotEmpty &&
             !_messages.last.isUser &&
             _messages.last.text.isEmpty) {
@@ -124,6 +126,18 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     });
   }
 
+  void _openSettings() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => const _AISettingsSheet(),
+    );
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -134,35 +148,46 @@ class _AIAssistantViewState extends State<AIAssistantView> {
         final status = AIService.instance.status;
         return Column(
           children: [
-            // Status overlays replace the main content when not ready.
             if (status == AiStatus.unavailable)
               Expanded(child: _UnavailableCard())
             else if (status == AiStatus.optedOut)
               Expanded(child: _OptInCard())
+            else if (status == AiStatus.needsConfig)
+              Expanded(child: _NeedsConfigCard(onConfigure: _openSettings))
             else if (status == AiStatus.loading)
               Expanded(child: _LoadingCard())
             else if (status == AiStatus.error)
               Expanded(child: _ErrorCard())
             else ...[
-              // Ready — show tab selector + content.
               Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0, vertical: 10.0),
-                child: SegmentedButton<int>(
-                  segments: const [
-                    ButtonSegment(
-                      value: 0,
-                      label: Text('Search'),
-                      icon: Icon(Icons.search),
+                padding: const EdgeInsets.fromLTRB(16, 10, 4, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: SegmentedButton<int>(
+                        segments: const [
+                          ButtonSegment(
+                            value: 0,
+                            label: Text('Search'),
+                            icon: Icon(Icons.search),
+                          ),
+                          ButtonSegment(
+                            value: 1,
+                            label: Text('Insights'),
+                            icon: Icon(Icons.chat_outlined),
+                          ),
+                        ],
+                        selected: {_tab},
+                        onSelectionChanged: (s) =>
+                            setState(() => _tab = s.first),
+                      ),
                     ),
-                    ButtonSegment(
-                      value: 1,
-                      label: Text('Insights'),
-                      icon: Icon(Icons.chat_outlined),
+                    IconButton(
+                      onPressed: _openSettings,
+                      icon: const Icon(Icons.settings_outlined),
+                      tooltip: 'AI settings',
                     ),
                   ],
-                  selected: {_tab},
-                  onSelectionChanged: (s) => setState(() => _tab = s.first),
                 ),
               ),
               Expanded(
@@ -182,7 +207,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: Row(
             children: [
               Expanded(
@@ -228,7 +253,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                         child: Text(
                           'Found ${_searchResults!.length} '
                           '${_searchResults!.length == 1 ? 'receipt' : 'receipts'} '
-                          'matching "$_lastQuery" · AI-powered, on-device',
+                          'matching "$_lastQuery" · AI-powered',
                           style:
                               Theme.of(context).textTheme.bodySmall?.copyWith(
                                     color: scheme.onSurfaceVariant,
@@ -261,7 +286,6 @@ class _AIAssistantViewState extends State<AIAssistantView> {
   Widget _buildChat() {
     return Column(
       children: [
-        // Clear button (top right)
         if (_messages.isNotEmpty)
           Align(
             alignment: Alignment.centerRight,
@@ -274,8 +298,6 @@ class _AIAssistantViewState extends State<AIAssistantView> {
               ),
             ),
           ),
-
-        // Message list
         Expanded(
           child: _messages.isEmpty
               ? Center(
@@ -301,15 +323,11 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                   itemBuilder: (_, i) => _ChatBubble(msg: _messages[i]),
                 ),
         ),
-
-        // Input row
         Padding(
           padding: EdgeInsets.only(
             left: 12,
             right: 12,
             top: 8,
-            // When the keyboard is hidden, add enough clearance for the
-            // floating "Add receipt" FAB (56 px tall + 16 px margin = 72 px).
             bottom: MediaQuery.of(context).viewInsets.bottom > 0
                 ? MediaQuery.of(context).viewInsets.bottom + 12
                 : 88,
@@ -352,6 +370,509 @@ class _AIAssistantViewState extends State<AIAssistantView> {
   }
 }
 
+// ── Settings bottom sheet ─────────────────────────────────────────────────────
+
+class _AISettingsSheet extends StatefulWidget {
+  const _AISettingsSheet();
+
+  @override
+  State<_AISettingsSheet> createState() => _AISettingsSheetState();
+}
+
+class _AISettingsSheetState extends State<_AISettingsSheet>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = AIService.instance.backendType == BackendType.anthropic
+        ? 1
+        : 0;
+    _tabs = TabController(length: 2, vsync: this, initialIndex: initial);
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, controller) => Column(
+        children: [
+          // Handle bar
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: scheme.onSurfaceVariant.withAlpha(80),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Icon(Icons.auto_awesome_outlined, color: scheme.primary),
+                const SizedBox(width: 8),
+                Text('AI Settings',
+                    style: Theme.of(context).textTheme.titleLarge),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          TabBar(
+            controller: _tabs,
+            tabs: const [
+              Tab(icon: Icon(Icons.phone_android_outlined), text: 'Local Model'),
+              Tab(icon: Icon(Icons.cloud_outlined), text: 'Anthropic Claude'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabs,
+              children: [
+                _LocalModelTab(scrollController: controller),
+                _AnthropicTab(scrollController: controller),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Local model tab ───────────────────────────────────────────────────────────
+
+class _LocalModelTab extends StatefulWidget {
+  const _LocalModelTab({required this.scrollController});
+  final ScrollController scrollController;
+
+  @override
+  State<_LocalModelTab> createState() => _LocalModelTabState();
+}
+
+class _LocalModelTabState extends State<_LocalModelTab> {
+  final _urlCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  bool _addingCustom = false;
+  Map<String, bool> _installed = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _checkInstalled();
+  }
+
+  @override
+  void dispose() {
+    _urlCtrl.dispose();
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _checkInstalled() async {
+    final svc = AIService.instance;
+    final results = <String, bool>{};
+    for (final m in svc.allLocalModels) {
+      results[m.id] = await svc.isModelInstalled(m.id);
+    }
+    if (mounted) setState(() => _installed = results);
+  }
+
+  Future<void> _selectModel(LocalModelConfig config) async {
+    final nav = Navigator.of(context);
+    await AIService.instance.switchLocalModel(config.id);
+    if (mounted) {
+      await _checkInstalled();
+      nav.pop();
+    }
+  }
+
+  Future<void> _deleteModel(LocalModelConfig config) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete model?'),
+        content: Text(
+            'Remove "${config.name}" (${config.sizeMb} MB) from this device?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await AIService.instance.deleteLocalModel(config.id);
+      if (config.isCustom) {
+        await AIService.instance.removeCustomModel(config.id);
+      }
+      if (mounted) await _checkInstalled();
+    }
+  }
+
+  Future<void> _addCustomModel() async {
+    final url = _urlCtrl.text.trim();
+    if (url.isEmpty) return;
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasAbsolutePath) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid URL')),
+      );
+      return;
+    }
+    final filename = uri.pathSegments.lastWhere(
+      (s) => s.endsWith('.litertlm'),
+      orElse: () => '',
+    );
+    if (filename.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('URL must point to a .litertlm file')),
+      );
+      return;
+    }
+    final name =
+        _nameCtrl.text.trim().isEmpty ? filename : _nameCtrl.text.trim();
+    final config = LocalModelConfig(
+      id: filename,
+      name: name,
+      description: 'Custom model',
+      url: url,
+      sizeMb: 0,
+      modelType: ModelType.qwen3,
+      fileType: ModelFileType.litertlm,
+      isCustom: true,
+    );
+    await AIService.instance.addCustomModel(config);
+    _urlCtrl.clear();
+    _nameCtrl.clear();
+    setState(() => _addingCustom = false);
+    if (mounted) await _checkInstalled();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AIService.instance,
+      builder: (context, _) {
+        final svc = AIService.instance;
+        final models = svc.allLocalModels;
+        final activeId = svc.activeModelId;
+        final isLocal = svc.backendType == BackendType.local;
+        final scheme = Theme.of(context).colorScheme;
+
+        return ListView(
+          controller: widget.scrollController,
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text('Choose a model to run 100% on-device.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    )),
+            const SizedBox(height: 12),
+            ...models.map((m) {
+              final isActive = isLocal && m.id == activeId;
+              final isInstalled = _installed[m.id] ?? false;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                color: isActive
+                    ? scheme.primaryContainer.withAlpha(120)
+                    : null,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      // ignore: deprecated_member_use
+                      Radio<String>(
+                        value: m.id,
+                        // ignore: deprecated_member_use
+                        groupValue: isLocal ? activeId : null,
+                        // ignore: deprecated_member_use
+                        onChanged: (_) => _selectModel(m),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(m.name,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall),
+                                if (m.isCustom) ...[
+                                  const SizedBox(width: 6),
+                                  Chip(
+                                    label: const Text('custom'),
+                                    padding: EdgeInsets.zero,
+                                    labelStyle: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ],
+                              ],
+                            ),
+                            if (m.description.isNotEmpty)
+                              Text(m.description,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                          color: scheme.onSurfaceVariant)),
+                            if (m.sizeMb > 0)
+                              Text('~${m.sizeMb} MB',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                          color: scheme.onSurfaceVariant)),
+                          ],
+                        ),
+                      ),
+                      if (isInstalled && !isActive)
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          tooltip: 'Remove from device',
+                          onPressed: () => _deleteModel(m),
+                        ),
+                      if (!isInstalled)
+                        Text('Not downloaded',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+              );
+            }),
+            const Divider(height: 24),
+            // Custom model section
+            if (!_addingCustom)
+              OutlinedButton.icon(
+                onPressed: () => setState(() => _addingCustom = true),
+                icon: const Icon(Icons.add),
+                label: const Text('Add custom model URL'),
+              )
+            else
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('Add custom model',
+                          style: Theme.of(context).textTheme.titleSmall),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _urlCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Model URL (.litertlm)',
+                          hintText:
+                              'https://huggingface.co/…/model.litertlm',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        keyboardType: TextInputType.url,
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _nameCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Display name (optional)',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () =>
+                                setState(() => _addingCustom = false),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed: _addCustomModel,
+                            child: const Text('Add'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ── Anthropic tab ─────────────────────────────────────────────────────────────
+
+class _AnthropicTab extends StatefulWidget {
+  const _AnthropicTab({required this.scrollController});
+  final ScrollController scrollController;
+
+  @override
+  State<_AnthropicTab> createState() => _AnthropicTabState();
+}
+
+class _AnthropicTabState extends State<_AnthropicTab> {
+  final _keyCtrl = TextEditingController();
+  bool _obscure = true;
+  String _selectedModel = AIService.instance.anthropicModel;
+  bool _saving = false;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadKey();
+  }
+
+  @override
+  void dispose() {
+    _keyCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadKey() async {
+    final key = await AIService.instance.readAnthropicKey();
+    if (mounted) {
+      setState(() {
+        _keyCtrl.text = key;
+        _loaded = true;
+      });
+    }
+  }
+
+  Future<void> _save() async {
+    final nav = Navigator.of(context);
+    setState(() => _saving = true);
+    await AIService.instance.enableAnthropicBackend(
+      apiKey: _keyCtrl.text.trim(),
+      model: _selectedModel,
+    );
+    if (mounted) {
+      setState(() => _saving = false);
+      nav.pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    if (!_loaded) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return ListView(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          'Use Claude via the Anthropic API. '
+          'Your API key is stored securely on this device.',
+          style: Theme.of(context)
+              .textTheme
+              .bodyMedium
+              ?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _keyCtrl,
+          obscureText: _obscure,
+          decoration: InputDecoration(
+            labelText: 'Anthropic API key',
+            hintText: 'sk-ant-…',
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.key_outlined),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(
+                      _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.copy_outlined),
+                  tooltip: 'Copy',
+                  onPressed: () {
+                    Clipboard.setData(
+                        ClipboardData(text: _keyCtrl.text.trim()));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Copied')));
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          // ignore: deprecated_member_use
+          value: _selectedModel,
+          decoration: const InputDecoration(
+            labelText: 'Model',
+            border: OutlineInputBorder(),
+          ),
+          items: AIService.anthropicModels
+              .map((pair) => DropdownMenuItem(
+                    value: pair.$1,
+                    child: Text(pair.$2),
+                  ))
+              .toList(),
+          onChanged: (v) => setState(() => _selectedModel = v!),
+        ),
+        const SizedBox(height: 24),
+        FilledButton.icon(
+          onPressed: _saving ? null : _save,
+          icon: _saving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.check),
+          label: const Text('Save & use Anthropic Claude'),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Requires an active Anthropic account. Receipts are sent to '
+          'the Anthropic API to answer your questions.',
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: scheme.onSurfaceVariant),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+}
+
 // ── Status cards ─────────────────────────────────────────────────────────────
 
 class _OptInCard extends StatelessWidget {
@@ -372,37 +893,92 @@ class _OptInCard extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.auto_awesome_outlined,
-                  size: 48,
-                  color: scheme.primary,
-                ),
+                Icon(Icons.auto_awesome_outlined,
+                    size: 48, color: scheme.primary),
                 const SizedBox(height: 16),
-                Text(
-                  'Enable AI Assistant',
-                  style: Theme.of(context).textTheme.titleLarge,
-                  textAlign: TextAlign.center,
-                ),
+                Text('Enable AI Assistant',
+                    style: Theme.of(context).textTheme.titleLarge,
+                    textAlign: TextAlign.center),
                 const SizedBox(height: 12),
                 Text(
-                  'Natural language search and spending insights — powered '
-                  'by Qwen3, running 100% on your device. No receipt data '
-                  'ever leaves your phone.\n\n'
-                  'Requires a one-time download of approximately 586 MB.',
+                  'Natural language search and spending insights.\n\n'
+                  'Run 100% on-device with a local model, or connect your '
+                  'Anthropic API key to use Claude.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: () => AIService.instance.enableAI(),
-                  child: const Text('Enable AI features'),
+                FilledButton.icon(
+                  onPressed: () =>
+                      AIService.instance.enableLocalBackend(),
+                  icon: const Icon(Icons.phone_android_outlined),
+                  label: const Text('Use local model (free, private)'),
                 ),
                 const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () {},
-                  child: const Text('Not now'),
+                OutlinedButton.icon(
+                  onPressed: () => showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    useSafeArea: true,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                    builder: (_) => const _AISettingsSheet(),
+                  ),
+                  icon: const Icon(Icons.cloud_outlined),
+                  label: const Text('Configure Anthropic Claude'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NeedsConfigCard extends StatelessWidget {
+  const _NeedsConfigCard({required this.onConfigure});
+  final VoidCallback onConfigure;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: scheme.outlineVariant),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.key_outlined, size: 48, color: scheme.primary),
+                const SizedBox(height: 16),
+                Text('API Key Required',
+                    style: Theme.of(context).textTheme.titleLarge,
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                Text(
+                  'Enter your Anthropic API key to start using Claude.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: onConfigure,
+                  icon: const Icon(Icons.settings_outlined),
+                  label: const Text('Open AI Settings'),
                 ),
               ],
             ),
@@ -440,7 +1016,7 @@ class _LoadingCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
                 Text(
-                  '${progress > 0 ? '$pct%' : 'Starting…'} · ~586 MB · runs fully on-device',
+                  '${progress > 0 ? '$pct%' : 'Starting…'} · runs fully on-device',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),
@@ -495,7 +1071,7 @@ class _ErrorCard extends StatelessWidget {
                   ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: () => AIService.instance.enableAI(),
+                  onPressed: () => AIService.instance.enableLocalBackend(),
                   icon: const Icon(Icons.refresh),
                   label: const Text('Retry'),
                 ),
@@ -576,7 +1152,9 @@ class _ChatBubble extends StatelessWidget {
           maxWidth: MediaQuery.of(context).size.width * 0.8,
         ),
         decoration: BoxDecoration(
-          color: isUser ? scheme.primaryContainer : scheme.surfaceContainerHigh,
+          color: isUser
+              ? scheme.primaryContainer
+              : scheme.surfaceContainerHigh,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
