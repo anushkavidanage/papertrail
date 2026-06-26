@@ -70,6 +70,42 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     return SolidScaffold(
       appBar: const SolidAppBarConfig(title: appTitle),
+      aboutConfig: SolidAboutConfig(
+        applicationName: appTitle,
+        applicationIcon: Image.asset(
+          'assets/images/app_icon.png',
+          width: 64,
+          height: 64,
+        ),
+        applicationLegalese: '''© 2026 Togaware Pty Ltd''',
+        text: '''
+
+        PaperTrail is a private receipts and expense manager that stores your
+        receipts encrypted in your personal Solid Pod, so your data stays
+        under your control. Your Solid Pod can be hosted on any Solid server
+        and being encrypted it is protected against casual access by anyone,
+        including the server administrators.
+
+        ### Key features
+
+        - Add, edit and browse receipts with images
+        - Search and filter receipts by date, vendor and amount
+        - Analytics with charts and spending statistics
+        - Browse the raw files stored on your Pod
+        - Backup and restore all receipts and attachments as a ZIP
+        - Export the receipt list to CSV
+        - All receipt data stored encrypted on your Pod
+        - Security key management for encrypted data
+        - Theme switching (light / dark / system)
+
+        For more information, visit the
+        [PaperTrail](https://github.com/anusii/papertrail) GitHub repository
+        and our [Australian Solid Community](https://solidcommunity.au) web
+        site.
+
+        ''',
+        readmeUrl: 'https://gjwgit.github.io/papertrail',
+      ),
       menu: const [
         SolidMenuItem(
           icon: Icons.home_outlined,

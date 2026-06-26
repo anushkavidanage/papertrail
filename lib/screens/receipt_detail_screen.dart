@@ -40,6 +40,7 @@ import '../services/pod_service.dart';
 import '../services/receipt_store.dart';
 import '../utils/formatting.dart';
 import 'add_edit_receipt_screen.dart';
+import 'zoomable_image_view.dart';
 
 class ReceiptDetailScreen extends StatefulWidget {
   const ReceiptDetailScreen({super.key, required this.receiptId});
@@ -373,9 +374,16 @@ class _AttachmentViewerState extends State<_AttachmentViewer> {
               },
             );
           }
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.memory(snap.data!, fit: BoxFit.contain),
+          return GestureDetector(
+            onTap: () => ZoomableImageView.show(
+              context,
+              snap.data!,
+              title: receipt.title,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(snap.data!, fit: BoxFit.contain),
+            ),
           );
         },
       );
@@ -538,9 +546,18 @@ class _ExtraAttachmentItemState extends State<_ExtraAttachmentItem> {
           if (snap.hasError || !snap.hasData) {
             return _AttachmentError(onRetry: () => setState(_maybeLoadImage));
           }
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.memory(snap.data!, fit: BoxFit.contain),
+          return GestureDetector(
+            onTap: () => ZoomableImageView.show(
+              context,
+              snap.data!,
+              title: widget.extra.description.isEmpty
+                  ? null
+                  : widget.extra.description,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(snap.data!, fit: BoxFit.contain),
+            ),
           );
         },
       );

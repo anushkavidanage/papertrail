@@ -37,8 +37,9 @@ Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.1.0 Basic Functionality
 
-+ Add ABOUT, and BACKUP/RESTORE [1.0.15 20260625 gjwgit]
-+ Setup installer build and meta data [1.0.14 20260625 gjwgit]
++ Support image zoom [1.0.16 20260627 gjw]
++ Add ABOUT, and BACKUP/RESTORE [1.0.15 20260625 gjw]
++ Setup installer build and meta data [1.0.14 20260625 gjw]
 + Warranty expire notifications [1.0.13 20260618 av]
 + Show receipt total by category [1.0.12 20260617 av]
 + Bulk select and delete receipts [1.0.11 20260617 av]
