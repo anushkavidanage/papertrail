@@ -161,90 +161,90 @@ class _BackupViewState extends State<BackupView> {
             // ── Backup & Restore ────────────────────────────────────────
             Text(
               'Backup & Restore',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Save all your receipts and their attachments (images & PDFs) to '
-            'a single ZIP file, or restore everything from a previously saved '
-            'backup. Importing into an empty Pod recreates it exactly.',
-            style: TextStyle(color: cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Currently $receiptCount receipt(s) and $attachmentCount '
-            'attachment(s).',
-            style: TextStyle(
-              color: cs.onSurfaceVariant,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          if (_backupMessage != null) ...[
-            const SizedBox(height: 12),
-            _MessageBanner(
-              message: _backupMessage!,
-              isError: _backupError,
-              cs: cs,
-            ),
-          ],
-          if (_busy && _progressTotal > 0) ...[
-            const SizedBox(height: 16),
-            LinearProgressIndicator(
-              value: _progressTotal == 0
-                  ? null
-                  : _progressCurrent / _progressTotal,
+              style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
-              _progressLabel,
-              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              'Save all your receipts and their attachments (images & PDFs) to '
+              'a single ZIP file, or restore everything from a previously saved '
+              'backup. Importing into an empty Pod recreates it exactly.',
+              style: TextStyle(color: cs.onSurfaceVariant),
             ),
-          ],
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              FilledButton.icon(
-                icon: const Icon(Icons.download),
-                label: const Text('Export Backup'),
-                onPressed: _busy ? null : _exportBackup,
+            const SizedBox(height: 8),
+            Text(
+              'Currently $receiptCount receipt(s) and $attachmentCount '
+              'attachment(s).',
+              style: TextStyle(
+                color: cs.onSurfaceVariant,
+                fontStyle: FontStyle.italic,
               ),
-              const SizedBox(width: 12),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.upload),
-                label: const Text('Import Backup'),
-                onPressed: _busy ? null : _importBackup,
+            ),
+            if (_backupMessage != null) ...[
+              const SizedBox(height: 12),
+              _MessageBanner(
+                message: _backupMessage!,
+                isError: _backupError,
+                cs: cs,
               ),
             ],
-          ),
+            if (_busy && _progressTotal > 0) ...[
+              const SizedBox(height: 16),
+              LinearProgressIndicator(
+                value: _progressTotal == 0
+                    ? null
+                    : _progressCurrent / _progressTotal,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _progressLabel,
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                FilledButton.icon(
+                  icon: const Icon(Icons.download),
+                  label: const Text('Export Backup'),
+                  onPressed: _busy ? null : _exportBackup,
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.upload),
+                  label: const Text('Import Backup'),
+                  onPressed: _busy ? null : _importBackup,
+                ),
+              ],
+            ),
 
-          // ── Export ──────────────────────────────────────────────────
-          const SizedBox(height: 32),
-          Text('Export', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            'Save the receipt list (without attachments) to a CSV spreadsheet '
-            'that opens in Excel or Google Sheets.',
-            style: TextStyle(color: cs.onSurfaceVariant),
-          ),
-          if (_exportMessage != null) ...[
-            const SizedBox(height: 12),
-            _MessageBanner(
-              message: _exportMessage!,
-              isError: _exportError,
-              cs: cs,
+            // ── Export ──────────────────────────────────────────────────
+            const SizedBox(height: 32),
+            Text('Export', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(
+              'Save the receipt list (without attachments) to a CSV spreadsheet '
+              'that opens in Excel or Google Sheets.',
+              style: TextStyle(color: cs.onSurfaceVariant),
             ),
-          ],
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              OutlinedButton.icon(
-                icon: const Icon(Icons.table_chart_outlined),
-                label: const Text('Export to CSV'),
-                onPressed: _busy ? null : _exportCsv,
+            if (_exportMessage != null) ...[
+              const SizedBox(height: 12),
+              _MessageBanner(
+                message: _exportMessage!,
+                isError: _exportError,
+                cs: cs,
               ),
             ],
-          ),
-        ],
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.table_chart_outlined),
+                  label: const Text('Export to CSV'),
+                  onPressed: _busy ? null : _exportCsv,
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
