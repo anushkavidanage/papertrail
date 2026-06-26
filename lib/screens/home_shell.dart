@@ -99,12 +99,12 @@ class _HomeShellState extends State<HomeShell> {
         - Theme switching (light / dark / system)
 
         For more information, visit the
-        [PaperTrail](https://github.com/anusii/papertrail) GitHub repository
+        [PaperTrail](https://github.com/anushkavidanage/papertrail) GitHub repository
         and our [Australian Solid Community](https://solidcommunity.au) web
         site.
 
         ''',
-        readmeUrl: 'https://gjwgit.github.io/papertrail',
+        readmeUrl: 'https://anushkvidanage.github.io/papertrail',
       ),
       menu: const [
         SolidMenuItem(
