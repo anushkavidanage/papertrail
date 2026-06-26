@@ -63,8 +63,8 @@ class _ZoomableImageViewState extends State<ZoomableImageView> {
     final x = -pos.dx * (scale - 1);
     final y = -pos.dy * (scale - 1);
     _controller.value = Matrix4.identity()
-      ..translate(x, y)
-      ..scale(scale);
+      ..translateByDouble(x, y, 0, 1)
+      ..scaleByDouble(scale, scale, scale, 1);
   }
 
   @override
@@ -83,7 +83,9 @@ class _ZoomableImageViewState extends State<ZoomableImageView> {
           transformationController: _controller,
           minScale: 1,
           maxScale: 5,
-          child: Center(child: Image.memory(widget.bytes, fit: BoxFit.contain)),
+          child: Center(
+            child: Image.memory(widget.bytes, fit: BoxFit.contain),
+          ),
         ),
       ),
     );
