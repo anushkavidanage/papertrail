@@ -4,39 +4,41 @@ Noted here are the high level changes for the app.  Each update
 includes a short user-oriented description.
 
 <!-- You can run the app in your
-[**browser**](https://todopod.solidcommunity.au) or else download and
+[**browser**](https://papertrail.solidcommunity.au) or else download and
 install locally the latest version from the [Solid Community
 AU](https://solidcommunity.au) or directly:
 
 + **Android** as
-[aab](https://solidcommunity.au/installers/todopod.aab) or
-[apk](https://solidcommunity.au/installers/todopod.apk);
+[aab](https://solidcommunity.au/installers/papertrail.aab) or
+[apk](https://solidcommunity.au/installers/papertrail.apk);
 + **GNU/Linux** as
-[deb](https://solidcommunity.au/installers/todopod_amd64.deb) or
-[snap](https://solidcommunity.au/installers/todopod_amd64.snap) or
-[zip](https://solidcommunity.au/installers/todopod-linux.zip);
+[deb](https://solidcommunity.au/installers/papertrail_amd64.deb) or
+[snap](https://solidcommunity.au/installers/papertrail_amd64.snap) or
+[zip](https://solidcommunity.au/installers/papertrail-linux.zip);
 + **macOS** as
-[dmg](https://solidcommunity.au/installers/todopod-macos.dmg) or
-[zip](https://solidcommunity.au/installers/todopod-macos.zip);
+[dmg](https://solidcommunity.au/installers/papertrail-macos.dmg) or
+[zip](https://solidcommunity.au/installers/papertrail-macos.zip);
 + **Windows** as
-[inno](https://solidcommunity.au/installers/todopod-windows-inno.exe)
-or [zip](https://solidcommunity.au/installers/todopod-windows.zip).
+[inno](https://solidcommunity.au/installers/papertrail-windows-inno.exe)
+or [zip](https://solidcommunity.au/installers/papertrail-windows.zip).
 
 Contributions are welcome. Visit
-[github](https://github.com/gjwgit/todopod) to submit an issue or, even
+[github](https://github.com/anushkavidanage/papertrail) to submit an issue or, even
 better, fork the repository yourself, update the code, and submit a
 Pull Request. Coding documentation is
-[available](https://solidcommunity.au/docs/todopod/).
+[available](https://solidcommunity.au/docs/papertrail/).
 
 We make this project available for free so if you appreciate the app
 then please show some ❤️ and tap on the star at
-[GitHub](https://github.com/gjwgit/todopod) to support our work. -->
+[GitHub](https://github.com/anushkavidanage/papertrail) to support our work. -->
 
 This app is authored by [Anushka
 Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.1.0 Basic Functionality
 
++ Add ABOUT, and BACKUP/RESTORE [1.0.15 20260625 gjwgit]
++ Setup installer build and meta data [1.0.14 20260625 gjwgit]
 + Warranty expire notifications [1.0.13 20260618 av]
 + Show receipt total by category [1.0.12 20260617 av]
 + Bulk select and delete receipts [1.0.11 20260617 av]

@@ -1,3 +1,6 @@
+Makefile
+support/
+
 ########################################################################
 # Local ignores
 ########################################################################
@@ -6,14 +9,15 @@
 
 *~
 *.bak
+coverage
 
 ARCHIVE
 ignore
 pubspec.yaml.*
-!templates/solidpod/pubspec.yaml.tmpl
+
+.flutter-plugins*
 
 qtest_*.txt
-/test/widget_test.dart
 
 installers/*.apk
 installers/*.exe
@@ -81,7 +85,6 @@ integration_test/fixtures/tmdb_api_key.json
 .svn/
 .swiftpm/
 migrate_working_dir/
-/.metadata
 
 #-----------------------------------------------------------------------
 # IntelliJ related
@@ -98,8 +101,7 @@ migrate_working_dir/
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
 # is commented out by default.
-
-.vscode/
+#.vscode/
 
 # Symbolication related
 app.*.symbols
@@ -154,8 +156,7 @@ analysis_benchmark.json
 .pub-cache/
 .pub-preload-cache/
 .pub/
-/build/
-/coverage/
+build/
 flutter_*.png
 linked_*.ds
 unlinked.ds
@@ -262,19 +263,6 @@ macos/Runner/Info.plist
 macos/Podfile-*
 macos/project-*.yml
 
-/macos/Podfile.lock
-/macos/.gitignore
-/macos/Podfile
-/macos/Flutter/
-/macos/Runner.xcworkspace/
-/macos/RunnerTests/
-/macos/Runner/AppDelegate.swift
-/macos/Runner/Info.plist
-/macos/Runner/MainFlutterWindow.swift
-/macos/Runner/Assets.xcassets/
-/macos/Runner/Base.lproj/
-/macos/Runner/Configs/
-
 #-----------------------------------------------------------------------
 # Windows
 #-----------------------------------------------------------------------
@@ -304,16 +292,13 @@ macos/project-*.yml
 #-----------------------------------------------------------------------
 
 coverage/
+*.lcov
 
 #-----------------------------------------------------------------------
-# Symbolication related
+# Symbols
 #-----------------------------------------------------------------------
 
 app.*.symbols
-
-# Obfuscation related
-
-app.*.map.json
 
 #-----------------------------------------------------------------------
 # Exceptions to above rules.
@@ -325,11 +310,3 @@ app.*.map.json
 !**/ios/**/default.perspectivev3
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 !/dev/ci/**/Gemfile.lock
-
-#-----------------------------------------------------------------------
-# Claude related files
-#-----------------------------------------------------------------------
-
-CLAUDE.md
-Claude.md
-.claude/*

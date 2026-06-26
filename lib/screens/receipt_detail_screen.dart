@@ -1,11 +1,37 @@
 /// Full detail view of a single receipt, with edit and delete actions and
 /// on-demand viewing of the attached photo or PDF.
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -30,7 +56,8 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
   Future<void> _edit(Receipt receipt) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-          builder: (_) => AddEditReceiptScreen(existing: receipt)),
+        builder: (_) => AddEditReceiptScreen(existing: receipt),
+      ),
     );
     // The store updates itself on save; nothing else to do here.
   }
@@ -38,7 +65,8 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
   Future<void> _duplicate(Receipt receipt) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-          builder: (_) => AddEditReceiptScreen(duplicateFrom: receipt)),
+        builder: (_) => AddEditReceiptScreen(duplicateFrom: receipt),
+      ),
     );
   }
 
@@ -48,15 +76,18 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Delete receipt?'),
         content: Text(
-            'This permanently removes "${receipt.title}" and its attachment '
-            'from your Pod.'),
+          'This permanently removes "${receipt.title}" and its attachment '
+          'from your Pod.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Delete'),
           ),
@@ -72,8 +103,9 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
     } catch (e) {
       setState(() => _busy = false);
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Could not delete: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not delete: $e')));
       }
     }
   }
@@ -88,7 +120,9 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
           // Likely just deleted.
           return Scaffold(
             appBar: AppBar(),
-            body: const Center(child: Text('This receipt is no longer available.')),
+            body: const Center(
+              child: Text('This receipt is no longer available.'),
+            ),
           );
         }
         return Scaffold(
@@ -125,20 +159,22 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
                 Text(
                   formatMoney(receipt.amount, receipt.currency),
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 _InfoRow(
-                    icon: Icons.event,
-                    label: 'Purchased',
-                    value: formatDate(receipt.purchaseDate)),
+                  icon: Icons.event,
+                  label: 'Purchased',
+                  value: formatDate(receipt.purchaseDate),
+                ),
                 if (receipt.vendor.isNotEmpty)
                   _InfoRow(
-                      icon: Icons.store_outlined,
-                      label: 'Vendor',
-                      value: receipt.vendor),
+                    icon: Icons.store_outlined,
+                    label: 'Vendor',
+                    value: receipt.vendor,
+                  ),
                 if (receipt.hasWarranty)
                   _InfoRow(
                     icon: Icons.verified_user_outlined,
@@ -146,9 +182,9 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
                     value: receipt.warrantyExpiry == null
                         ? 'Yes'
                         : receipt.isWarrantyExpired
-                            ? 'Expired ${formatDate(receipt.warrantyExpiry!)}'
-                            : 'Until ${formatDate(receipt.warrantyExpiry!)} '
-                                '(${relativeDay(receipt.warrantyExpiry!)})',
+                        ? 'Expired ${formatDate(receipt.warrantyExpiry!)}'
+                        : 'Until ${formatDate(receipt.warrantyExpiry!)} '
+                              '(${relativeDay(receipt.warrantyExpiry!)})',
                     valueColor: receipt.isWarrantyExpired
                         ? Theme.of(context).colorScheme.error
                         : null,
@@ -161,8 +197,7 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
                 ],
                 if (receipt.categories.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  _ChipBlock(
-                      title: 'Categories', tags: receipt.categories),
+                  _ChipBlock(title: 'Categories', tags: receipt.categories),
                 ],
                 if (receipt.flags.isNotEmpty) ...[
                   const SizedBox(height: 16),
@@ -213,8 +248,10 @@ class _InfoRow extends StatelessWidget {
           const SizedBox(width: 12),
           SizedBox(
             width: 88,
-            child: Text(label,
-                style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
           Expanded(
             child: Text(value, style: TextStyle(color: valueColor)),
@@ -288,20 +325,23 @@ class _AttachmentViewerState extends State<_AttachmentViewer> {
   Future<void> _openPdf() async {
     setState(() => _openingPdf = true);
     try {
-      final bytes =
-          await PodService.instance.readAttachmentBytes(widget.receipt.id);
+      final bytes = await PodService.instance.readAttachmentBytes(
+        widget.receipt.id,
+      );
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/${widget.receipt.id}.pdf');
       await file.writeAsBytes(bytes, flush: true);
       final result = await OpenFilex.open(file.path);
       if (result.type != ResultType.done && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not open PDF: ${result.message}')));
+          SnackBar(content: Text('Could not open PDF: ${result.message}')),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Could not open PDF: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not open PDF: $e')));
       }
     } finally {
       if (mounted) setState(() => _openingPdf = false);
@@ -322,13 +362,16 @@ class _AttachmentViewerState extends State<_AttachmentViewer> {
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
             return const SizedBox(
-                height: 160,
-                child: Center(child: CircularProgressIndicator()));
+              height: 160,
+              child: Center(child: CircularProgressIndicator()),
+            );
           }
           if (snap.hasError || !snap.hasData) {
-            return _AttachmentError(onRetry: () {
-              setState(_maybeLoadImage);
-            });
+            return _AttachmentError(
+              onRetry: () {
+                setState(_maybeLoadImage);
+              },
+            );
           }
           return ClipRRect(
             borderRadius: BorderRadius.circular(8),
@@ -343,7 +386,8 @@ class _AttachmentViewerState extends State<_AttachmentViewer> {
             ? const SizedBox(
                 width: 16,
                 height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2))
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
             : const Icon(Icons.picture_as_pdf),
         label: Text(_openingPdf ? 'Opening…' : 'Open PDF'),
       );
@@ -393,8 +437,7 @@ class _ExtraAttachmentsViewer extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Additional Files',
-            style: Theme.of(context).textTheme.titleSmall),
+        Text('Additional Files', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
         ...receipt.extraAttachments.map(
           (extra) => Padding(
@@ -409,8 +452,7 @@ class _ExtraAttachmentsViewer extends StatelessWidget {
 
 /// Downloads and displays one extra attachment.
 class _ExtraAttachmentItem extends StatefulWidget {
-  const _ExtraAttachmentItem(
-      {required this.receipt, required this.extra});
+  const _ExtraAttachmentItem({required this.receipt, required this.extra});
 
   final Receipt receipt;
   final ExtraAttachment extra;
@@ -441,7 +483,9 @@ class _ExtraAttachmentItemState extends State<_ExtraAttachmentItem> {
   void _maybeLoadImage() {
     if (widget.extra.kind == AttachmentKind.image) {
       _imageFuture = PodService.instance.readExtraAttachmentBytes(
-          widget.receipt.id, widget.extra.id);
+        widget.receipt.id,
+        widget.extra.id,
+      );
     } else {
       _imageFuture = null;
     }
@@ -451,22 +495,25 @@ class _ExtraAttachmentItemState extends State<_ExtraAttachmentItem> {
     setState(() => _openingPdf = true);
     try {
       final bytes = await PodService.instance.readExtraAttachmentBytes(
-          widget.receipt.id, widget.extra.id);
+        widget.receipt.id,
+        widget.extra.id,
+      );
       final dir = await getTemporaryDirectory();
       final file = File(
-          '${dir.path}/${widget.receipt.id}_${widget.extra.id}.pdf');
+        '${dir.path}/${widget.receipt.id}_${widget.extra.id}.pdf',
+      );
       await file.writeAsBytes(bytes, flush: true);
       final result = await OpenFilex.open(file.path);
       if (result.type != ResultType.done && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content:
-                    Text('Could not open PDF: ${result.message}')));
+          SnackBar(content: Text('Could not open PDF: ${result.message}')),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not open file: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not open file: $e')));
       }
     } finally {
       if (mounted) setState(() => _openingPdf = false);
@@ -484,12 +531,12 @@ class _ExtraAttachmentItemState extends State<_ExtraAttachmentItem> {
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
             return const SizedBox(
-                height: 120,
-                child: Center(child: CircularProgressIndicator()));
+              height: 120,
+              child: Center(child: CircularProgressIndicator()),
+            );
           }
           if (snap.hasError || !snap.hasData) {
-            return _AttachmentError(
-                onRetry: () => setState(_maybeLoadImage));
+            return _AttachmentError(onRetry: () => setState(_maybeLoadImage));
           }
           return ClipRRect(
             borderRadius: BorderRadius.circular(8),
@@ -504,7 +551,8 @@ class _ExtraAttachmentItemState extends State<_ExtraAttachmentItem> {
             ? const SizedBox(
                 width: 16,
                 height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2))
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
             : const Icon(Icons.picture_as_pdf),
         label: Text(_openingPdf ? 'Opening…' : 'Open PDF'),
       );
@@ -517,8 +565,8 @@ class _ExtraAttachmentItemState extends State<_ExtraAttachmentItem> {
           Text(
             extra.description,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 4),
         ],

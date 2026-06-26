@@ -1,12 +1,38 @@
 /// Form for creating a new receipt or editing an existing one.
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -121,7 +147,9 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
     _vendorController = TextEditingController(text: r?.vendor ?? '');
     _descriptionController = TextEditingController(text: r?.description ?? '');
     _currency = r?.currency ?? currencies.first;
-    _purchaseDate = duping ? DateTime.now() : (r?.purchaseDate ?? DateTime.now());
+    _purchaseDate = duping
+        ? DateTime.now()
+        : (r?.purchaseDate ?? DateTime.now());
     _categories = {...?r?.categories};
     _flags = {...?r?.flags};
     _hasWarranty = r?.hasWarranty ?? false;
@@ -132,14 +160,14 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
     _extraSlots = duping
         ? []
         : (r?.extraAttachments ?? [])
-            .map(
-              (e) => _ExtraSlot(
-                id: e.id,
-                existingExtension: e.extension,
-                descriptionText: e.description,
-              ),
-            )
-            .toList();
+              .map(
+                (e) => _ExtraSlot(
+                  id: e.id,
+                  existingExtension: e.extension,
+                  descriptionText: e.description,
+                ),
+              )
+              .toList();
   }
 
   @override
@@ -589,11 +617,13 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isEditing
-            ? 'Edit receipt'
-            : widget.isDuplicating
-                ? 'Duplicate receipt'
-                : 'Add receipt'),
+        title: Text(
+          widget.isEditing
+              ? 'Edit receipt'
+              : widget.isDuplicating
+              ? 'Duplicate receipt'
+              : 'Add receipt',
+        ),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,

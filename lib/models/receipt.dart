@@ -1,4 +1,29 @@
 /// The [Receipt] domain model.
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 /// The kind of attachment associated with a receipt.
@@ -36,10 +61,10 @@ class ExtraAttachment {
   AttachmentKind get kind => AttachmentKind.fromExtension(extension);
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'extension': extension,
-        'description': description,
-      };
+    'id': id,
+    'extension': extension,
+    'description': description,
+  };
 
   factory ExtraAttachment.fromJson(Map<String, dynamic> json) =>
       ExtraAttachment(
@@ -138,7 +163,10 @@ class Receipt {
     final today = DateTime.now();
     final d0 = DateTime(today.year, today.month, today.day);
     final d1 = DateTime(
-        warrantyExpiry!.year, warrantyExpiry!.month, warrantyExpiry!.day);
+      warrantyExpiry!.year,
+      warrantyExpiry!.month,
+      warrantyExpiry!.day,
+    );
     return d1.difference(d0).inDays;
   }
 
@@ -184,22 +212,22 @@ class Receipt {
 
   /// Serialise to a plain JSON-compatible map (the canonical payload).
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'amount': amount,
-        'currency': currency,
-        'purchaseDate': purchaseDate.toIso8601String(),
-        'description': description,
-        'vendor': vendor,
-        'categories': categories,
-        'flags': flags,
-        'hasWarranty': hasWarranty,
-        'warrantyExpiry': warrantyExpiry?.toIso8601String(),
-        'attachmentExtension': attachmentExtension,
-        'extraAttachments': extraAttachments.map((e) => e.toJson()).toList(),
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-      };
+    'id': id,
+    'title': title,
+    'amount': amount,
+    'currency': currency,
+    'purchaseDate': purchaseDate.toIso8601String(),
+    'description': description,
+    'vendor': vendor,
+    'categories': categories,
+    'flags': flags,
+    'hasWarranty': hasWarranty,
+    'warrantyExpiry': warrantyExpiry?.toIso8601String(),
+    'attachmentExtension': attachmentExtension,
+    'extraAttachments': extraAttachments.map((e) => e.toJson()).toList(),
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+  };
 
   /// Reconstruct from a JSON map produced by [toJson].
   factory Receipt.fromJson(Map<String, dynamic> json) {
@@ -216,12 +244,15 @@ class Receipt {
       purchaseDate: parseDate(json['purchaseDate']) ?? DateTime.now(),
       description: (json['description'] as String?) ?? '',
       vendor: (json['vendor'] as String?) ?? '',
-      categories: (json['categories'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      categories:
+          (json['categories'] as List?)?.map((e) => e.toString()).toList() ??
+          [],
       flags: (json['flags'] as List?)?.map((e) => e.toString()).toList() ?? [],
       hasWarranty: (json['hasWarranty'] as bool?) ?? false,
       warrantyExpiry: parseDate(json['warrantyExpiry']),
       attachmentExtension: json['attachmentExtension'] as String?,
-      extraAttachments: (json['extraAttachments'] as List?)
+      extraAttachments:
+          (json['extraAttachments'] as List?)
               ?.map((e) => ExtraAttachment.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],

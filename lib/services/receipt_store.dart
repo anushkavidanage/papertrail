@@ -3,6 +3,31 @@
 /// A single [ReceiptStore] instance is shared across the app. Screens listen to
 /// it (via [ListenableBuilder]) and call [refresh], [save] and [delete], which
 /// proxy to [PodService] and then notify listeners.
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'dart:async';
@@ -44,8 +69,7 @@ class ReceiptStore extends ChangeNotifier {
     return list;
   }
 
-  double get totalAmount =>
-      _receipts.fold(0.0, (sum, r) => sum + r.amount);
+  double get totalAmount => _receipts.fold(0.0, (sum, r) => sum + r.amount);
 
   Receipt? byId(String id) {
     for (final r in _receipts) {
@@ -100,9 +124,7 @@ class ReceiptStore extends ChangeNotifier {
     _status = StoreStatus.ready;
     notifyListeners();
     // Fire-and-forget: reschedule (or cancel) the warranty reminder.
-    unawaited(
-      NotificationService.instance.scheduleWarrantyReminder(receipt),
-    );
+    unawaited(NotificationService.instance.scheduleWarrantyReminder(receipt));
   }
 
   /// Delete [receipt] from the Pod and the in-memory list.
@@ -110,9 +132,7 @@ class ReceiptStore extends ChangeNotifier {
     await _pod.deleteReceipt(receipt);
     _receipts.removeWhere((r) => r.id == receipt.id);
     notifyListeners();
-    unawaited(
-      NotificationService.instance.cancelWarrantyReminder(receipt.id),
-    );
+    unawaited(NotificationService.instance.cancelWarrantyReminder(receipt.id));
   }
 
   /// Delete multiple receipts from the Pod and the in-memory list.

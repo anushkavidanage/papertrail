@@ -1,6 +1,7 @@
 // Unit tests for the receipt Turtle (de)serialisation round-trip.
 
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:papertrail/models/receipt.dart';
 import 'package:papertrail/services/receipt_serializer.dart';
 
@@ -51,8 +52,9 @@ void main() {
       updatedAt: DateTime(2026, 1, 2),
     );
 
-    final restored =
-        ReceiptSerializer.fromTurtle(ReceiptSerializer.toTurtle(original));
+    final restored = ReceiptSerializer.fromTurtle(
+      ReceiptSerializer.toTurtle(original),
+    );
 
     expect(restored.title, 'Coffee');
     expect(restored.hasAttachment, isFalse);

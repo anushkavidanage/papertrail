@@ -1,4 +1,4 @@
-/// Papertrail — track your purchase receipts, stored in your own Solid Pod.
+/// A Paper Receipts Manager
 ///
 /// Copyright (C) 2026, Anushka Vidanage
 ///
@@ -25,14 +25,3 @@
 // meta doc lines in the docs.
 
 library;
-
-import 'package:flutter/material.dart';
-
-import 'app.dart';
-import 'services/notification_service.dart';
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService.instance.init();
-  runApp(const PapertrailApp());
-}
