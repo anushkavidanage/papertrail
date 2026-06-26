@@ -83,9 +83,7 @@ class _ZoomableImageViewState extends State<ZoomableImageView> {
           transformationController: _controller,
           minScale: 1,
           maxScale: 5,
-          child: Center(
-            child: Image.memory(widget.bytes, fit: BoxFit.contain),
-          ),
+          child: Center(child: Image.memory(widget.bytes, fit: BoxFit.contain)),
         ),
       ),
     );
