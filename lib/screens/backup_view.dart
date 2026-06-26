@@ -152,14 +152,15 @@ class _BackupViewState extends State<BackupView> {
       (sum, r) => sum + (r.hasAttachment ? 1 : 0) + r.extraAttachments.length,
     );
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Backup & Restore ────────────────────────────────────────
-          Text(
-            'Backup & Restore',
+    return SizedBox.expand(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Backup & Restore ────────────────────────────────────────
+            Text(
+              'Backup & Restore',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
@@ -244,6 +245,7 @@ class _BackupViewState extends State<BackupView> {
             ],
           ),
         ],
+        ),
       ),
     );
   }
