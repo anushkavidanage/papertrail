@@ -37,6 +37,7 @@ Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.0 Basic Functionality
 
++ Add PDF to BACKUP and SEARCH [1.0.18 20260628 gjw]
 + TITLE/STORE dropdown with known values [1.0.17 20260627 gjw]
 + Support image zoom [1.0.16 20260627 gjw]
 + Add ABOUT, and BACKUP/RESTORE [1.0.15 20260625 gjw]

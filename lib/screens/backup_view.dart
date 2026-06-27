@@ -13,7 +13,9 @@ import 'package:flutter/material.dart';
 
 import '../services/backup_service.dart';
 import '../services/receipt_store.dart';
+import '../services/receipts_pdf.dart';
 import '../utils/csv_exporter.dart';
+import 'backup_message_banner.dart';
 
 // ignore_for_file: use_build_context_synchronously
 
@@ -35,6 +37,8 @@ class _BackupViewState extends State<BackupView> {
   bool _backupError = false;
   String? _exportMessage;
   bool _exportError = false;
+  String? _viewMessage;
+  bool _viewError = false;
 
   int _progressCurrent = 0;
   int _progressTotal = 0;
@@ -128,6 +132,23 @@ class _BackupViewState extends State<BackupView> {
     }
   }
 
+  Future<void> _viewPdf() async {
+    await viewReceiptsAsPdf(
+      context,
+      receipts: _store.receipts,
+      onMessage: (msg, {bool isError = false}) {
+        if (!mounted) return;
+        setState(() {
+          _viewMessage = msg;
+          _viewError = isError;
+        });
+      },
+      onBusy: (busy) {
+        if (mounted) setState(() => _busy = busy);
+      },
+    );
+  }
+
   Future<void> _exportCsv() async {
     setState(() {
       _busy = true;
@@ -181,7 +202,7 @@ class _BackupViewState extends State<BackupView> {
             ),
             if (_backupMessage != null) ...[
               const SizedBox(height: 12),
-              _MessageBanner(
+              BackupMessageBanner(
                 message: _backupMessage!,
                 isError: _backupError,
                 cs: cs,
@@ -217,6 +238,47 @@ class _BackupViewState extends State<BackupView> {
               ],
             ),
 
+            // ── View ────────────────────────────────────────────────────
+            const SizedBox(height: 32),
+            Text('View', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(
+              'Choose receipts and view them as a PDF on screen. You can save '
+              'or print from the preview.',
+              style: TextStyle(color: cs.onSurfaceVariant),
+            ),
+            if (_viewMessage != null) ...[
+              const SizedBox(height: 12),
+              BackupMessageBanner(
+                message: _viewMessage!,
+                isError: _viewError,
+                cs: cs,
+              ),
+            ],
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: Icon(Icons.picture_as_pdf_outlined, color: cs.primary),
+                title: const Text(
+                  'View Receipts as PDF',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+                subtitle: Text(
+                  'Choose receipts to view, save or print from '
+                  '$receiptCount receipt(s).',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+                ),
+                trailing: _busy
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+                onTap: _busy ? null : _viewPdf,
+              ),
+            ),
+
             // ── Export ──────────────────────────────────────────────────
             const SizedBox(height: 32),
             Text('Export', style: Theme.of(context).textTheme.titleLarge),
@@ -228,7 +290,7 @@ class _BackupViewState extends State<BackupView> {
             ),
             if (_exportMessage != null) ...[
               const SizedBox(height: 12),
-              _MessageBanner(
+              BackupMessageBanner(
                 message: _exportMessage!,
                 isError: _exportError,
                 cs: cs,
@@ -246,49 +308,6 @@ class _BackupViewState extends State<BackupView> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Inline status banner mirroring todopod's ImportMessageBanner.
-
-class _MessageBanner extends StatelessWidget {
-  const _MessageBanner({
-    required this.message,
-    required this.isError,
-    required this.cs,
-  });
-
-  final String message;
-  final bool isError;
-  final ColorScheme cs;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isError ? cs.errorContainer : cs.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isError ? Icons.error_outline : Icons.check_circle_outline,
-            color: isError ? cs.onErrorContainer : cs.onSecondaryContainer,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                color: isError ? cs.onErrorContainer : cs.onSecondaryContainer,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

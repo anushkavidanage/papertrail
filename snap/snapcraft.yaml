@@ -1,5 +1,5 @@
 name: papertrail
-version: 1.0.17
+version: 1.0.18
 summary: Privacy preserving receipt manager.
 description: |
   PaperTrail collects your receipts and securely stores them in your
