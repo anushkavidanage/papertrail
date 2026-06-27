@@ -3,7 +3,7 @@
 Noted here are the high level changes for the app.  Each update
 includes a short user-oriented description.
 
-<!-- You can run the app in your
+You can run the app in your
 [**browser**](https://papertrail.solidcommunity.au) or else download and
 install locally the latest version from the [Solid Community
 AU](https://solidcommunity.au) or directly:
@@ -30,12 +30,12 @@ Pull Request. Coding documentation is
 
 We make this project available for free so if you appreciate the app
 then please show some ❤️ and tap on the star at
-[GitHub](https://github.com/anushkavidanage/papertrail) to support our work. -->
+[GitHub](https://github.com/anushkavidanage/papertrail) to support our work.
 
 This app is authored by [Anushka
 Vidanage](https://anushkavidanage.github.io/).
 
-## 1.1.0 Basic Functionality
+## 1.0 Basic Functionality
 
 + TITLE/STORE dropdown with known values [1.0.17 20260627 gjw]
 + Support image zoom [1.0.16 20260627 gjw]
@@ -54,7 +54,4 @@ Vidanage](https://anushkavidanage.github.io/).
 + Add basic analytics of receipts [1.0.3 20260615 av]
 + Change app color theme [1.0.2 20260615 av]
 + Add app logo [1.0.1 20260612 av]
-
-## 1.0.0 Initial App
-
 + Initial app [1.0.0 20260611 av]
