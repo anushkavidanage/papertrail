@@ -104,7 +104,7 @@ class _HomeShellState extends State<HomeShell> {
         site.
 
         ''',
-        readmeUrl: 'https://anushkvidanage.github.io/papertrail',
+        readmeUrl: 'https://github.com/anushkavidanage/papertrail/',
       ),
       menu: const [
         SolidMenuItem(
