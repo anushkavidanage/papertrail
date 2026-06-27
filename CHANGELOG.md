@@ -37,6 +37,7 @@ Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.1.0 Basic Functionality
 
++ TITLE/STORE dropdown with known values [1.0.17 20260627 gjw]
 + Support image zoom [1.0.16 20260627 gjw]
 + Add ABOUT, and BACKUP/RESTORE [1.0.15 20260625 gjw]
 + Setup installer build and meta data [1.0.14 20260625 gjw]
