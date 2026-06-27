@@ -109,13 +109,13 @@ class _HomeShellState extends State<HomeShell> {
       menu: const [
         SolidMenuItem(
           icon: Icons.home_outlined,
-          title: 'Home',
+          title: 'Receipts',
           tooltip: 'Recent receipts and a quick overview.',
           child: RecentReceiptsView(),
         ),
         SolidMenuItem(
           icon: Icons.receipt_long_outlined,
-          title: 'Receipts',
+          title: 'Search',
           tooltip: 'Browse, search and filter all of your receipts.',
           child: AllReceiptsView(),
         ),
