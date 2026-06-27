@@ -1,6 +1,6 @@
 /// Backup and restore service for receipts and their attachments.
 ///
-/// Copyright (C) 2026, Togaware Pty Ltd
+/// Copyright (C) 2026, Anushka Vidanage
 ///
 /// Licensed under the GNU General Public License, Version 3 (the "License").
 ///

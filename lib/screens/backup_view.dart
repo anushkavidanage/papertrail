@@ -1,7 +1,7 @@
 /// Backup & Restore screen: export all receipts and attachments to a ZIP,
 /// restore from a backup, or export the receipt list to CSV.
 ///
-/// Copyright (C) 2026, Togaware Pty Ltd
+/// Copyright (C) 2026, Anushka Vidanage
 ///
 /// Licensed under the GNU General Public License, Version 3 (the "License").
 ///

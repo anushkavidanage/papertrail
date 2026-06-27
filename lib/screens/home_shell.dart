@@ -77,7 +77,7 @@ class _HomeShellState extends State<HomeShell> {
           width: 64,
           height: 64,
         ),
-        applicationLegalese: '''© 2026 Togaware Pty Ltd''',
+        applicationLegalese: '''© 2026 Anushka Vidanage''',
         text: '''
 
         PaperTrail is a private receipts and expense manager that stores your
