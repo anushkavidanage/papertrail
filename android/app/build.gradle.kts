@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.togaware.papertrail"
+    namespace = "com.example.papertrail"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -17,7 +17,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.togaware.papertrail"
+        applicationId = "com.example.papertrail"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -25,8 +25,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         manifestPlaceholders.putAll(mapOf(
-        "appAuthRedirectScheme" to "com.togaware.papertrail"
-    ))
+        "appAuthRedirectScheme" to "com.example.papertrail"
+    )) 
     }
 
     buildTypes {

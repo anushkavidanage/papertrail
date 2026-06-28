@@ -1,4 +1,4 @@
-package com.togaware.papertrail
+package com.example.papertrail
 
 import io.flutter.embedding.android.FlutterActivity
 

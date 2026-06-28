@@ -68,7 +68,7 @@ const String clientId =
 /// desktop/web; the custom scheme entry is used on mobile.
 const List<String> redirectUris = [
   'http://localhost:4400/redirect',
-  'com.togaware.papertrail://redirect',
+  'com.example.papertrail://redirect',
   'https://anushkavidanage.github.io/apps/papertrail/redirect.html',
 ];
 
