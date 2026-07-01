@@ -842,7 +842,11 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
                   const SizedBox(height: 24),
                   _TagSection(
                     title: 'Categories',
-                    options: {...defaultCategories, ..._categories},
+                    options: {
+                      ...defaultCategories,
+                      ...ReceiptStore.instance.usedCategories,
+                      ..._categories,
+                    },
                     selected: _categories,
                     onToggle: (tag, sel) => setState(() {
                       sel ? _categories.add(tag) : _categories.remove(tag);
@@ -852,7 +856,11 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
                   const SizedBox(height: 24),
                   _TagSection(
                     title: 'Flags',
-                    options: {...defaultFlags, ..._flags},
+                    options: {
+                      ...defaultFlags,
+                      ...ReceiptStore.instance.usedFlags,
+                      ..._flags,
+                    },
                     selected: _flags,
                     onToggle: (tag, sel) => setState(() {
                       sel ? _flags.add(tag) : _flags.remove(tag);

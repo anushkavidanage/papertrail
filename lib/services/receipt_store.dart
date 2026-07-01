@@ -69,6 +69,16 @@ class ReceiptStore extends ChangeNotifier {
     return list;
   }
 
+  /// Every distinct flag currently in use, sorted alphabetically.
+  List<String> get usedFlags {
+    final set = <String>{};
+    for (final r in _receipts) {
+      set.addAll(r.flags);
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
   double get totalAmount => _receipts.fold(0.0, (sum, r) => sum + r.amount);
 
   Receipt? byId(String id) {

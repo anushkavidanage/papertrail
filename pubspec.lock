@@ -117,10 +117,10 @@ packages:
     dependency: transitive
     description:
       name: cross_file
-      sha256: "28bb3ae56f117b5aec029d702a90f57d285cd975c3c5c281eaca38dbc47c5937"
+      sha256: d687bec93342bf6a764a116d15c8694ebeff10e633dc28a39dd3144f7195024e
       url: "https://pub.dev"
     source: hosted
-    version: "0.3.5+2"
+    version: "0.3.5+3"
   crypto:
     dependency: transitive
     description:
@@ -484,10 +484,10 @@ packages:
     dependency: "direct main"
     description:
       name: image_picker
-      sha256: "91c025426c2881c551100bce834e201c835a170151545f58d17da5180ca7d9ac"
+      sha256: d8402284df184bc05f4a2210c6c23983b0720f4cd87cbd05c5390a78af602667
       url: "https://pub.dev"
     source: hosted
-    version: "1.2.2"
+    version: "1.2.3"
   image_picker_android:
     dependency: transitive
     description:
@@ -1081,18 +1081,18 @@ packages:
     dependency: "direct main"
     description:
       name: solidpod
-      sha256: f053325b1472f784f1faad383427d512f36d25565d11aa62d24e4343cdd329b2
+      sha256: "513a8465b3e98007d9150c6e4417edf800fe212b47210f1db35b064e5f2c3ba3"
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.11"
+    version: "1.0.12"
   solidui:
     dependency: "direct main"
     description:
       name: solidui
-      sha256: "8cfa247ba031ec622b972e9ae1aeabbe74c6c88c30c70a1d294ab8e5114fa9d4"
+      sha256: "342ffd14c7bf2b6fe2c3c191199c64f1151182631a549dab81c611b793d1a19e"
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.14"
+    version: "1.0.16"
   source_span:
     dependency: transitive
     description:
