@@ -1,12 +1,38 @@
 /// Form for creating a new receipt or editing an existing one.
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -79,8 +105,10 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
   final _uuid = const Uuid();
 
   late final TextEditingController _titleController;
+  final FocusNode _titleFocus = FocusNode();
   late final TextEditingController _amountController;
   late final TextEditingController _vendorController;
+  final FocusNode _vendorFocus = FocusNode();
   late final TextEditingController _descriptionController;
 
   late String _currency;
@@ -106,11 +134,35 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
 
   bool _saving = false;
 
+  /// Sorted list of distinct vendors from existing receipts, for autocomplete.
+  late final List<String> _knownVendors;
+
+  /// Sorted list of distinct titles from existing receipts, for autocomplete.
+  late final List<String> _knownTitles;
+
   @override
   void initState() {
     super.initState();
     final r = widget.existing ?? widget.duplicateFrom;
     final duping = widget.isDuplicating;
+
+    // Build the distinct, sorted vendor list for the autocomplete dropdown.
+    final vendors = <String>{};
+    for (final receipt in ReceiptStore.instance.receipts) {
+      final v = receipt.vendor.trim();
+      if (v.isNotEmpty) vendors.add(v);
+    }
+    _knownVendors = vendors.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    // Build the distinct, sorted title list for the autocomplete dropdown.
+    final titles = <String>{};
+    for (final receipt in ReceiptStore.instance.receipts) {
+      final t = receipt.title.trim();
+      if (t.isNotEmpty) titles.add(t);
+    }
+    _knownTitles = titles.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
     _titleController = TextEditingController(
       text: duping && r != null ? 'Copy of ${r.title}' : (r?.title ?? ''),
@@ -121,7 +173,9 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
     _vendorController = TextEditingController(text: r?.vendor ?? '');
     _descriptionController = TextEditingController(text: r?.description ?? '');
     _currency = r?.currency ?? currencies.first;
-    _purchaseDate = duping ? DateTime.now() : (r?.purchaseDate ?? DateTime.now());
+    _purchaseDate = duping
+        ? DateTime.now()
+        : (r?.purchaseDate ?? DateTime.now());
     _categories = {...?r?.categories};
     _flags = {...?r?.flags};
     _hasWarranty = r?.hasWarranty ?? false;
@@ -132,21 +186,23 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
     _extraSlots = duping
         ? []
         : (r?.extraAttachments ?? [])
-            .map(
-              (e) => _ExtraSlot(
-                id: e.id,
-                existingExtension: e.extension,
-                descriptionText: e.description,
-              ),
-            )
-            .toList();
+              .map(
+                (e) => _ExtraSlot(
+                  id: e.id,
+                  existingExtension: e.extension,
+                  descriptionText: e.description,
+                ),
+              )
+              .toList();
   }
 
   @override
   void dispose() {
     _titleController.dispose();
+    _titleFocus.dispose();
     _amountController.dispose();
     _vendorController.dispose();
+    _vendorFocus.dispose();
     _descriptionController.dispose();
     for (final slot in _extraSlots) {
       slot.dispose();
@@ -589,11 +645,13 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isEditing
-            ? 'Edit receipt'
-            : widget.isDuplicating
-                ? 'Duplicate receipt'
-                : 'Add receipt'),
+        title: Text(
+          widget.isEditing
+              ? 'Edit receipt'
+              : widget.isDuplicating
+              ? 'Duplicate receipt'
+              : 'Add receipt',
+        ),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,
@@ -610,17 +668,60 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  TextFormField(
-                    controller: _titleController,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      labelText: 'Title *',
-                      hintText: 'e.g. Coffee machine',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Enter a title'
-                        : null,
+                  RawAutocomplete<String>(
+                    textEditingController: _titleController,
+                    focusNode: _titleFocus,
+                    optionsBuilder: (value) {
+                      final query = value.text.trim().toLowerCase();
+                      if (query.isEmpty) return _knownTitles;
+                      return _knownTitles.where(
+                        (t) => t.toLowerCase().contains(query),
+                      );
+                    },
+                    fieldViewBuilder:
+                        (context, controller, focusNode, onSubmit) {
+                          return TextFormField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            textCapitalization: TextCapitalization.sentences,
+                            decoration: const InputDecoration(
+                              labelText: 'Title *',
+                              hintText: 'e.g. Coffee machine',
+                              border: OutlineInputBorder(),
+                              suffixIcon: Icon(Icons.arrow_drop_down),
+                            ),
+                            validator: (v) => (v == null || v.trim().isEmpty)
+                                ? 'Enter a title'
+                                : null,
+                          );
+                        },
+                    optionsViewBuilder: (context, onSelected, options) {
+                      return Align(
+                        alignment: Alignment.topLeft,
+                        child: Material(
+                          elevation: 4,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxHeight: 240,
+                              maxWidth: 400,
+                            ),
+                            child: ListView.builder(
+                              padding: EdgeInsets.zero,
+                              shrinkWrap: true,
+                              itemCount: options.length,
+                              itemBuilder: (context, i) {
+                                final option = options.elementAt(i);
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(option),
+                                  onTap: () => onSelected(option),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -675,14 +776,57 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
                     onTap: _pickPurchaseDate,
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _vendorController,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      labelText: 'Store / vendor',
-                      hintText: 'e.g. The Good Guys',
-                      border: OutlineInputBorder(),
-                    ),
+                  RawAutocomplete<String>(
+                    textEditingController: _vendorController,
+                    focusNode: _vendorFocus,
+                    optionsBuilder: (value) {
+                      final query = value.text.trim().toLowerCase();
+                      if (query.isEmpty) return _knownVendors;
+                      return _knownVendors.where(
+                        (v) => v.toLowerCase().contains(query),
+                      );
+                    },
+                    fieldViewBuilder:
+                        (context, controller, focusNode, onSubmit) {
+                          return TextFormField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              labelText: 'Store / vendor',
+                              hintText: 'e.g. The Good Guys',
+                              border: OutlineInputBorder(),
+                              suffixIcon: Icon(Icons.arrow_drop_down),
+                            ),
+                          );
+                        },
+                    optionsViewBuilder: (context, onSelected, options) {
+                      return Align(
+                        alignment: Alignment.topLeft,
+                        child: Material(
+                          elevation: 4,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxHeight: 240,
+                              maxWidth: 400,
+                            ),
+                            child: ListView.builder(
+                              padding: EdgeInsets.zero,
+                              shrinkWrap: true,
+                              itemCount: options.length,
+                              itemBuilder: (context, i) {
+                                final option = options.elementAt(i);
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(option),
+                                  onTap: () => onSelected(option),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -698,7 +842,11 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
                   const SizedBox(height: 24),
                   _TagSection(
                     title: 'Categories',
-                    options: {...defaultCategories, ..._categories},
+                    options: {
+                      ...defaultCategories,
+                      ...ReceiptStore.instance.usedCategories,
+                      ..._categories,
+                    },
                     selected: _categories,
                     onToggle: (tag, sel) => setState(() {
                       sel ? _categories.add(tag) : _categories.remove(tag);
@@ -708,7 +856,11 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
                   const SizedBox(height: 24),
                   _TagSection(
                     title: 'Flags',
-                    options: {...defaultFlags, ..._flags},
+                    options: {
+                      ...defaultFlags,
+                      ...ReceiptStore.instance.usedFlags,
+                      ..._flags,
+                    },
                     selected: _flags,
                     onToggle: (tag, sel) => setState(() {
                       sel ? _flags.add(tag) : _flags.remove(tag);

@@ -1,4 +1,29 @@
 /// A compact card summarising a single receipt for use in lists.
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'package:flutter/material.dart';
@@ -24,10 +49,10 @@ class ReceiptCard extends StatelessWidget {
   final bool? isSelected;
 
   IconData get _attachmentIcon => switch (receipt.attachmentKind) {
-        AttachmentKind.image => Icons.image_outlined,
-        AttachmentKind.pdf => Icons.picture_as_pdf_outlined,
-        AttachmentKind.none => Icons.receipt_outlined,
-      };
+    AttachmentKind.image => Icons.image_outlined,
+    AttachmentKind.pdf => Icons.picture_as_pdf_outlined,
+    AttachmentKind.none => Icons.receipt_outlined,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -77,8 +102,13 @@ class ReceiptCard extends StatelessWidget {
                   spacing: 6,
                   runSpacing: 4,
                   children: [
-                    ...receipt.categories.take(3).map(
-                          (c) => _MiniChip(label: c, color: scheme.secondaryContainer),
+                    ...receipt.categories
+                        .take(3)
+                        .map(
+                          (c) => _MiniChip(
+                            label: c,
+                            color: scheme.secondaryContainer,
+                          ),
                         ),
                     if (receipt.hasWarranty)
                       _MiniChip(
@@ -97,13 +127,9 @@ class ReceiptCard extends StatelessWidget {
         ),
         trailing: Text(
           formatMoney(receipt.amount, receipt.currency),
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: scheme.primary,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, color: scheme.primary),
         ),
-        isThreeLine:
-            receipt.categories.isNotEmpty || receipt.hasWarranty,
+        isThreeLine: receipt.categories.isNotEmpty || receipt.hasWarranty,
       ),
     );
   }
@@ -127,10 +153,7 @@ class _MiniChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: 13),
-            const SizedBox(width: 4),
-          ],
+          if (icon != null) ...[Icon(icon, size: 13), const SizedBox(width: 4)],
           Text(label, style: const TextStyle(fontSize: 11)),
         ],
       ),

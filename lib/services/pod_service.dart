@@ -4,11 +4,37 @@
 ///   * ensure the user is logged in and the security key is available,
 ///   * read / write / delete encrypted receipt Turtle files,
 ///   * upload / download / delete encrypted attachment blobs (photos, PDFs).
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
+
 import 'package:solidpod/solidpod.dart';
 import 'package:solidui/solidui.dart' show getKeyFromUserIfRequired;
 
@@ -178,9 +204,11 @@ class PodService {
 
   /// Download the raw bytes of one of a receipt's extra attachments.
   Future<Uint8List> readExtraAttachmentBytes(
-          String receiptId, String extraId) =>
-      readLargeFileAsBytes(
-          remoteFilePath: _extraAttachmentPath(receiptId, extraId));
+    String receiptId,
+    String extraId,
+  ) => readLargeFileAsBytes(
+    remoteFilePath: _extraAttachmentPath(receiptId, extraId),
+  );
 
   /// Permanently delete a receipt and all of its attachments.
   Future<void> deleteReceipt(Receipt receipt) async {
@@ -209,10 +237,13 @@ class PodService {
   }
 
   Future<void> _deleteExtraAttachmentSilently(
-      String receiptId, String extraId) async {
+    String receiptId,
+    String extraId,
+  ) async {
     try {
       await deleteLargeFile(
-          remoteFilePath: _extraAttachmentPath(receiptId, extraId));
+        remoteFilePath: _extraAttachmentPath(receiptId, extraId),
+      );
     } catch (_) {}
   }
 }

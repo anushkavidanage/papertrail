@@ -1,4 +1,29 @@
 /// Home tab: a quick overview plus the most recently dated receipts.
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'package:flutter/material.dart';
@@ -17,7 +42,9 @@ class RecentReceiptsView extends StatelessWidget {
 
   void _open(BuildContext context, Receipt receipt) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ReceiptDetailScreen(receiptId: receipt.id)),
+      MaterialPageRoute(
+        builder: (_) => ReceiptDetailScreen(receiptId: receipt.id),
+      ),
     );
   }
 
@@ -50,8 +77,10 @@ class RecentReceiptsView extends StatelessWidget {
               const SizedBox(height: 20),
               Row(
                 children: [
-                  Text('Recent receipts',
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    'Recent receipts',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const Spacer(),
                   if (store.status == StoreStatus.loading)
                     const SizedBox(
@@ -134,9 +163,14 @@ class _Stat extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(value,
-            style: TextStyle(
-                fontSize: 26, fontWeight: FontWeight.bold, color: color)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
         const SizedBox(height: 4),
         Text(label, style: TextStyle(color: color)),
       ],
@@ -153,11 +187,16 @@ class _EmptyState extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 48),
       child: Column(
         children: [
-          Icon(Icons.receipt_long,
-              size: 72, color: Theme.of(context).disabledColor),
+          Icon(
+            Icons.receipt_long,
+            size: 72,
+            color: Theme.of(context).disabledColor,
+          ),
           const SizedBox(height: 16),
-          const Text('No receipts yet',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+          const Text(
+            'No receipts yet',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 8),
           const Text(
             'Tap "Add receipt" to record your first purchase.\n'
@@ -184,8 +223,11 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.lock_outline,
-                size: 56, color: Theme.of(context).colorScheme.error),
+            Icon(
+              Icons.lock_outline,
+              size: 56,
+              color: Theme.of(context).colorScheme.error,
+            ),
             const SizedBox(height: 16),
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),

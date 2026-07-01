@@ -1,4 +1,29 @@
 /// Schedules and cancels local warranty-reminder notifications.
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'dart:io';
@@ -20,8 +45,7 @@ class NotificationService {
 
   static const _channelId = 'warranty_reminders';
   static const _channelName = 'Warranty Reminders';
-  static const _channelDesc =
-      'Reminds you 30 days before a warranty expires.';
+  static const _channelDesc = 'Reminds you 30 days before a warranty expires.';
   static const _daysBeforeExpiry = 30;
 
   /// Call once from [main] before [runApp].
@@ -55,7 +79,8 @@ class NotificationService {
       if (Platform.isAndroid) {
         await _plugin
             .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>()
+              AndroidFlutterLocalNotificationsPlugin
+            >()
             ?.requestNotificationsPermission();
       }
     } catch (_) {
@@ -80,8 +105,9 @@ class NotificationService {
     if (!receipt.hasWarranty || receipt.warrantyExpiry == null) return;
 
     final expiry = receipt.warrantyExpiry!;
-    final reminderDay =
-        expiry.subtract(const Duration(days: _daysBeforeExpiry));
+    final reminderDay = expiry.subtract(
+      const Duration(days: _daysBeforeExpiry),
+    );
     // Fire at 9 AM local time on the reminder day.
     final notifyAt = DateTime(
       reminderDay.year,
@@ -93,8 +119,9 @@ class NotificationService {
     if (!notifyAt.isAfter(DateTime.now())) return;
 
     final scheduled = tz.TZDateTime.from(notifyAt, tz.local);
-    final title =
-        receipt.title.isEmpty ? 'Warranty expiring soon' : receipt.title;
+    final title = receipt.title.isEmpty
+        ? 'Warranty expiring soon'
+        : receipt.title;
     final body =
         'Warranty expires in $_daysBeforeExpiry days (${formatDate(expiry)}).';
 

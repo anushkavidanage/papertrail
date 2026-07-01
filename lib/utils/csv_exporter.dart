@@ -1,9 +1,36 @@
 /// Exports a list of receipts to a UTF-8 CSV file on disk.
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/receipt.dart';
@@ -86,4 +113,36 @@ Future<String> exportReceiptsToCsv(List<Receipt> receipts) async {
     ...utf8.encode(csv),
   ]);
   return file.path;
+}
+
+/// Builds the CSV for [receipts] and prompts the user for a save location via
+/// the system file chooser, mirroring the ZIP backup export.
+///
+/// Returns the saved path, or null if the user cancelled the dialog.
+Future<String?> exportReceiptsToCsvFile(List<Receipt> receipts) async {
+  final csv = _buildCsv(receipts);
+  // UTF-8 BOM prefix so Excel on Windows recognises the encoding automatically.
+  final bytes = Uint8List.fromList([0xEF, 0xBB, 0xBF, ...utf8.encode(csv)]);
+
+  final now = DateTime.now();
+  final stamp =
+      '${now.year}${_pad(now.month)}${_pad(now.day)}_'
+      '${_pad(now.hour)}${_pad(now.minute)}';
+  final filename = 'papertrail_$stamp.csv';
+
+  final savePath = await FilePicker.saveFile(
+    dialogTitle: 'Export CSV',
+    fileName: filename,
+    type: FileType.custom,
+    allowedExtensions: ['csv'],
+    bytes: bytes,
+  );
+  if (savePath == null) return null; // User cancelled.
+
+  // On desktop, saveFile returns a path but does not write the bytes, so we
+  // write them ourselves. On mobile, the picker writes the bytes.
+  if (!Platform.isAndroid && !Platform.isIOS) {
+    await File(savePath).writeAsBytes(bytes);
+  }
+  return savePath;
 }

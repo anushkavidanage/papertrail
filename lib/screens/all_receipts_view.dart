@@ -1,4 +1,29 @@
 /// Receipts tab: searchable, filterable, sortable list of every stored receipt.
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'package:flutter/material.dart';
@@ -6,11 +31,13 @@ import 'package:flutter/services.dart';
 
 import '../models/receipt.dart';
 import '../services/receipt_store.dart';
+import '../services/receipts_pdf.dart';
 import '../utils/csv_exporter.dart';
 import '../utils/formatting.dart';
 import '../widgets/locked_backdrop.dart';
 import '../widgets/receipt_card.dart';
 import 'receipt_detail_screen.dart';
+import 'receipts_pdf_preview.dart';
 
 enum _SortOption {
   dateDesc,
@@ -84,10 +111,12 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
       }
       if (_minAmount != null && r.amount < _minAmount!) return false;
       if (_maxAmount != null && r.amount > _maxAmount!) return false;
-      if (_fromDate != null && r.purchaseDate.isBefore(_fromDate!))
+      if (_fromDate != null && r.purchaseDate.isBefore(_fromDate!)) {
         return false;
-      if (_toDate != null && r.purchaseDate.isAfter(_toDateInclusive))
+      }
+      if (_toDate != null && r.purchaseDate.isAfter(_toDateInclusive)) {
         return false;
+      }
       if (q.isEmpty) return true;
       return r.title.toLowerCase().contains(q) ||
           r.vendor.toLowerCase().contains(q) ||
@@ -149,6 +178,48 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  // View the currently filtered (search result) receipts as a PDF. The search
+  // result IS the selection, so this builds the PDF directly and opens the
+  // on-screen preview where the user can save or print.
+
+  Future<void> _viewPdf(List<Receipt> receipts) async {
+    setState(() => _exporting = true);
+    try {
+      final pdfBytes = await buildReceiptsPdf(
+        receipts: receipts,
+        title: 'Papertrail Receipts',
+      );
+      final t = DateTime.now();
+      String p(int n) => n.toString().padLeft(2, '0');
+      final pdfName =
+          'papertrail_receipts_${t.year}${p(t.month)}${p(t.day)}_'
+          '${p(t.hour)}${p(t.minute)}.pdf';
+      if (!mounted) return;
+      setState(() => _exporting = false);
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ReceiptsPdfPreview(
+            pdfBytes: pdfBytes,
+            pdfName: pdfName,
+            onSaveResult: (msg, {bool isError = false}) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(msg)));
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not build PDF: $e')));
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -540,6 +611,15 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
                                 ? null
                                 : () => _exportCsv(filtered),
                           ),
+                    IconButton(
+                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                      tooltip: filtered.isEmpty
+                          ? 'No receipts to view'
+                          : 'View ${filtered.length} receipt${filtered.length == 1 ? '' : 's'} as PDF',
+                      onPressed: filtered.isEmpty
+                          ? null
+                          : () => _viewPdf(filtered),
+                    ),
                   ],
                 ),
               ),
