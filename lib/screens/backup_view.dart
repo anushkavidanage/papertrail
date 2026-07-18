@@ -181,14 +181,18 @@ class _BackupViewState extends State<BackupView> {
           children: [
             // ── Backup & Restore ────────────────────────────────────────
             Text(
-              'Backup & Restore',
+              'Export & Import',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
-              'Save all your receipts and their attachments (images & PDFs) to '
-              'a single ZIP file, or restore everything from a previously saved '
-              'backup. Importing into an empty Pod recreates it exactly.',
+              'Here you can save all your receipts and their attachments '
+              '(images & PDFs) decrypted to a single ZIP file. You can then '
+              'restore all receipts and attachments from a previously saved '
+              'ZIP file. Importing into an empty Pod recreates it exactly. '
+              'An encrypted backup to your local device is available through '
+              'your profile menu and an encrypted backup within your Data Vault '
+              'is available through the MyPod app.',
               style: TextStyle(color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 8),
@@ -226,13 +230,13 @@ class _BackupViewState extends State<BackupView> {
               children: [
                 FilledButton.icon(
                   icon: const Icon(Icons.download),
-                  label: const Text('Export Backup'),
+                  label: const Text('Export ZIP'),
                   onPressed: _busy ? null : _exportBackup,
                 ),
                 const SizedBox(width: 12),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.upload),
-                  label: const Text('Import Backup'),
+                  label: const Text('Import ZIP'),
                   onPressed: _busy ? null : _importBackup,
                 ),
               ],
@@ -255,28 +259,15 @@ class _BackupViewState extends State<BackupView> {
                 cs: cs,
               ),
             ],
-            const SizedBox(height: 12),
-            Card(
-              child: ListTile(
-                leading: Icon(Icons.picture_as_pdf_outlined, color: cs.primary),
-                title: const Text(
-                  'View Receipts as PDF',
-                  style: TextStyle(fontWeight: FontWeight.w500),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                FilledButton.icon(
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  label: const Text('View as PDF'),
+                  onPressed: _busy ? null : _viewPdf,
                 ),
-                subtitle: Text(
-                  'Choose receipts to view, save or print from '
-                  '$receiptCount receipt(s).',
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
-                ),
-                trailing: _busy
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
-                onTap: _busy ? null : _viewPdf,
-              ),
+              ],
             ),
 
             // ── Export ──────────────────────────────────────────────────
@@ -301,7 +292,7 @@ class _BackupViewState extends State<BackupView> {
               children: [
                 OutlinedButton.icon(
                   icon: const Icon(Icons.table_chart_outlined),
-                  label: const Text('Export to CSV'),
+                  label: const Text('Export CSV'),
                   onPressed: _busy ? null : _exportCsv,
                 ),
               ],

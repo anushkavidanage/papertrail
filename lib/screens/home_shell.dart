@@ -92,7 +92,7 @@ class _HomeShellState extends State<HomeShell> {
         - Search and filter receipts by date, vendor and amount
         - Analytics with charts and spending statistics
         - Browse the raw files stored on your Pod
-        - Backup and restore all receipts and attachments as a ZIP
+        - Export and import all receipts and attachments as a ZIP
         - Export the receipt list to CSV
         - All receipt data stored encrypted on your Pod
         - Security key management for encrypted data
@@ -133,7 +133,7 @@ class _HomeShellState extends State<HomeShell> {
         ),
         SolidMenuItem(
           icon: Icons.save_alt,
-          title: 'Backup',
+          title: 'Export/Import',
           tooltip: 'Back up and restore all receipts and attachments.',
           child: BackupView(),
         ),

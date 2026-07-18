@@ -37,6 +37,7 @@ Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.0 Basic Functionality
 
++ BACKUP -> EXPORT. Cache profile. [1.0.20 20260719 gjw]
 + Remember newly added categories [1.0.19 20260701 gjw]
 + Add PDF to BACKUP and SEARCH [1.0.18 20260628 gjw]
 + TITLE/STORE dropdown with known values [1.0.17 20260627 gjw]
