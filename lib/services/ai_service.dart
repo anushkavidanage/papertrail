@@ -282,6 +282,24 @@ class AIService extends ChangeNotifier {
     }
   }
 
+  /// Clears the active model's installed-state record and re-downloads it.
+  ///
+  /// Recovers from "Active model is no longer installed" errors, which
+  /// happen when the model's files are removed from disk (e.g. by external
+  /// storage cleanup) while the plugin's own registry still marks it
+  /// installed.
+  Future<void> resetActiveModel() async {
+    try {
+      await FlutterGemma.uninstallModel(_activeModelId);
+    } catch (_) {}
+    if (Platform.isWindows) {
+      try {
+        await File(_windowsModelPath).delete();
+      } catch (_) {}
+    }
+    await _loadLocalModel();
+  }
+
   // ── Local model download / load ───────────────────────────────────────────
 
   Future<void> _loadLocalModel() async {

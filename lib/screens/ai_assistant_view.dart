@@ -157,7 +157,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
             else if (status == AiStatus.loading)
               Expanded(child: _LoadingCard())
             else if (status == AiStatus.error)
-              Expanded(child: _ErrorCard())
+              Expanded(child: _ErrorCard(onOpenSettings: _openSettings))
             else ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 10, 4, 0),
@@ -1038,7 +1038,23 @@ class _LoadingCard extends StatelessWidget {
   }
 }
 
-class _ErrorCard extends StatelessWidget {
+class _ErrorCard extends StatefulWidget {
+  const _ErrorCard({required this.onOpenSettings});
+  final VoidCallback onOpenSettings;
+
+  @override
+  State<_ErrorCard> createState() => _ErrorCardState();
+}
+
+class _ErrorCardState extends State<_ErrorCard> {
+  bool _resetting = false;
+
+  Future<void> _reset() async {
+    setState(() => _resetting = true);
+    await AIService.instance.resetActiveModel();
+    if (mounted) setState(() => _resetting = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -1071,9 +1087,21 @@ class _ErrorCard extends StatelessWidget {
                   ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: () => AIService.instance.enableLocalBackend(),
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Retry'),
+                  onPressed: _resetting ? null : _reset,
+                  icon: _resetting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.restart_alt),
+                  label: const Text('Reset model & retry'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: _resetting ? null : widget.onOpenSettings,
+                  icon: const Icon(Icons.settings_outlined),
+                  label: const Text('Choose a different model'),
                 ),
               ],
             ),
