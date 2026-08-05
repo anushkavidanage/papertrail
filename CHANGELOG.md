@@ -35,6 +35,10 @@ then please show some ❤️ and tap on the star at
 This app is authored by [Anushka
 Vidanage](https://anushkavidanage.github.io/).
 
+## 1.2.0
+
++ Add AI capabilities [1.1.0 20260805 av]
+
 ## 1.1.0 Basic Functionality
 
 + Warranty expire notifications [1.0.13 20260618 av]
