@@ -68,11 +68,24 @@ class PodService {
     }
   }
 
+  /// Number of receipt files fetched from the Pod concurrently.
+  ///
+  /// Each receipt read is a network round trip, so fetching sequentially
+  /// makes load time scale linearly with the number of receipts. A bounded
+  /// concurrency keeps that scaling roughly `N / _loadConcurrency` without
+  /// overwhelming the Pod server with hundreds of simultaneous requests.
+  static const _loadConcurrency = 8;
+
   /// Load every receipt stored on the Pod, newest purchase first.
   ///
   /// Returns an empty list when the receipts container does not yet exist
-  /// (e.g. the very first run before anything has been saved).
-  Future<List<Receipt>> loadReceipts() async {
+  /// (e.g. the very first run before anything has been saved). When
+  /// [onReceipt] is provided, it is called as each receipt is decoded so
+  /// callers can render results progressively instead of waiting for every
+  /// file to finish loading.
+  Future<List<Receipt>> loadReceipts({
+    void Function(Receipt)? onReceipt,
+  }) async {
     if (!await isUserLoggedIn()) {
       throw NotReadyException('Please log in to your Pod first.');
     }
@@ -89,20 +102,34 @@ class PodService {
       return [];
     }
 
+    final names = fileNames
+        .where((name) => name.endsWith('.ttl') && !name.contains('.acl'))
+        .toList();
+
     final receipts = <Receipt>[];
-    for (final name in fileNames) {
-      if (!name.endsWith('.ttl') || name.contains('.acl')) continue;
-      try {
-        final turtle = await readPod(_receiptPath(_stripTtl(name)));
-        receipts.add(ReceiptSerializer.fromTurtle(turtle));
-      } catch (e) {
-        // Skip files that are not valid Papertrail receipts.
-        debugPrint('Skipping unreadable receipt "$name": $e');
+    for (var i = 0; i < names.length; i += _loadConcurrency) {
+      final batch = names.skip(i).take(_loadConcurrency);
+      final results = await Future.wait(batch.map(_loadOneReceipt));
+      for (final receipt in results) {
+        if (receipt == null) continue;
+        receipts.add(receipt);
+        onReceipt?.call(receipt);
       }
     }
 
     receipts.sort((a, b) => b.purchaseDate.compareTo(a.purchaseDate));
     return receipts;
+  }
+
+  Future<Receipt?> _loadOneReceipt(String name) async {
+    try {
+      final turtle = await readPod(_receiptPath(_stripTtl(name)));
+      return ReceiptSerializer.fromTurtle(turtle);
+    } catch (e) {
+      // Skip files that are not valid Papertrail receipts.
+      debugPrint('Skipping unreadable receipt "$name": $e');
+      return null;
+    }
   }
 
   String _stripTtl(String name) =>

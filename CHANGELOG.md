@@ -37,6 +37,7 @@ Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.2.0
 
++ Improve receipt loading efficiency [1.1.1 20260805 av]
 + Add AI capabilities [1.1.0 20260805 av]
 
 ## 1.1.0 Basic Functionality

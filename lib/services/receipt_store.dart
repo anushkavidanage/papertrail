@@ -56,9 +56,13 @@ class ReceiptStore extends ChangeNotifier {
 
   /// (Re)load all receipts from the Pod. [backdrop] is shown behind the
   /// security-key prompt if it appears.
+  ///
+  /// Receipts are streamed in as they're fetched so the UI can render
+  /// results progressively rather than blocking until every file loads.
   Future<void> refresh(BuildContext context, Widget backdrop) async {
     _status = StoreStatus.loading;
     _error = null;
+    _receipts = [];
     notifyListeners();
 
     try {
@@ -69,7 +73,13 @@ class ReceiptStore extends ChangeNotifier {
         notifyListeners();
         return;
       }
-      _receipts = await _pod.loadReceipts();
+      final loaded = await _pod.loadReceipts(
+        onReceipt: (receipt) {
+          _receipts = [..._receipts, receipt];
+          notifyListeners();
+        },
+      );
+      _receipts = loaded;
       _loadedOnce = true;
       _status = StoreStatus.ready;
     } catch (e) {
