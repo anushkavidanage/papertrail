@@ -11,6 +11,7 @@ import '../widgets/locked_backdrop.dart';
 import 'add_edit_receipt_screen.dart';
 import 'ai_assistant_view.dart';
 import 'all_receipts_view.dart';
+import 'ollama_chat_screen.dart';
 import 'analytics_view.dart';
 import 'recent_receipts_view.dart';
 
@@ -75,6 +76,13 @@ class _HomeShellState extends State<HomeShell> {
           tooltip:
               'Natural language receipt search and spending insights — on-device, private.',
           child: AIAssistantView(),
+        ),
+        SolidMenuItem(
+          icon: Icons.psychology_outlined,
+          title: 'Ollama',
+          tooltip:
+              'Chat with a locally running Ollama model using your full receipt history as context.',
+          child: OllamaChatScreen(),
         ),
       ],
       floatingActionButton: FloatingActionButton.extended(
