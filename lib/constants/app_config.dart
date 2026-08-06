@@ -2,6 +2,31 @@
 ///
 /// Papertrail keeps track of purchase receipts, storing every receipt and its
 /// attachment inside the user's own Solid Pod.
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'package:flutter/material.dart';
@@ -10,7 +35,7 @@ import 'package:flutter/material.dart';
 const String appTitle = 'Papertrail';
 
 /// A short tagline used on the login screen.
-const String appTagline = 'Your receipts, in your own Pod.';
+//const String appTagline = 'Your receipts, in your own Pod.';
 
 /// The directory name created on the Pod for this app.
 ///
@@ -120,7 +145,7 @@ const Color seedColor = Color(0xFFEF6E37);
 const Color lightOrage = Color(0xFFf99e77);
 
 /// Cover photo shown on the Solid login screen.
-const AssetImage loginCoverImage = AssetImage('assets/papertrail_cover.jpg');
+const AssetImage loginCoverImage = AssetImage('assets/images/app_image.jpg');
 
 /// App logo.
-const AssetImage appLogo = AssetImage('assets/papertrail_logo.png');
+const AssetImage appLogo = AssetImage('assets/images/app_icon.png');

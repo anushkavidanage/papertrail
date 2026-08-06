@@ -1,6 +1,7 @@
 # Papertrail
 
-Track your purchase receipts — stored privately in **your own** [Solid](https://solidproject.org) Pod.
+Track your purchase receipts — stored privately in **your own**
+[Solid](https://solidproject.org) Pod.
 
 Papertrail is a Flutter app built on
 [`solidpod`](https://pub.dev/packages/solidpod) and
@@ -29,17 +30,19 @@ one.
 
 Everything lives under `papertrail/data/` in the Pod:
 
-| What | Where | Format |
-| --- | --- | --- |
-| Receipt | `receipts/<uuid>.ttl` | Encrypted Turtle. Human-readable triples plus a canonical base64-encoded JSON payload (`pt:data`) for lossless round-tripping. |
-| Attachment | `attachments/<uuid>` | Encrypted blob via the Solid large-file API. |
+<!-- markdownlint-disable MD013 -->
+| What       | Where                 | Format                                                                                                                         |
+|------------|-----------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| Receipt    | `receipts/<uuid>.ttl` | Encrypted Turtle. Human-readable triples plus a canonical base64-encoded JSON payload (`pt:data`) for lossless round-tripping. |
+| Attachment | `attachments/<uuid>`  | Encrypted blob via the Solid large-file API.                                                                                   |
+<!-- markdownlint-enable MD013 -->
 
 The receipts container is listed with `getResourcesInContainer`; each file is
 read with `readPod` and parsed back into a `Receipt`.
 
 ## Project layout
 
-```
+```console
 lib/
   main.dart                       app entry point
   app.dart                        SolidThemeApp → SolidLogin → HomeShell

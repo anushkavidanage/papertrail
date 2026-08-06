@@ -1,10 +1,36 @@
 /// Analytics tab: spending charts and statistics derived from stored receipts.
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'dart:math' show max;
 
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+
+import 'package:fl_chart/fl_chart.dart';
 
 import '../models/receipt.dart';
 import '../services/receipt_store.dart';
@@ -107,7 +133,8 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                 _TopVendors(receipts: receipts),
                 const SizedBox(height: 24),
                 _UpcomingWarranties(
-                    receipts: store.receipts), // always the full list
+                  receipts: store.receipts,
+                ), // always the full list
               ],
             ],
           ),
@@ -229,8 +256,8 @@ class _StatCard extends StatelessWidget {
                   child: Text(
                     label,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: cs.onSurfaceVariant,
-                        ),
+                      color: cs.onSurfaceVariant,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -238,9 +265,9 @@ class _StatCard extends StatelessWidget {
             ),
             Text(
               value,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
               overflow: TextOverflow.ellipsis,
             ),
           ],
@@ -269,14 +296,16 @@ class _CategoryDonutState extends State<_CategoryDonut> {
   Map<String, double> get _totals {
     final map = <String, double>{};
     for (final r in widget.receipts) {
-      final cats =
-          r.categories.isEmpty ? const ['Uncategorised'] : r.categories;
+      final cats = r.categories.isEmpty
+          ? const ['Uncategorised']
+          : r.categories;
       for (final c in cats) {
         map[c] = (map[c] ?? 0) + r.amount;
       }
     }
     return Map.fromEntries(
-        map.entries.toList()..sort((a, b) => b.value.compareTo(a.value)));
+      map.entries.toList()..sort((a, b) => b.value.compareTo(a.value)),
+    );
   }
 
   @override
@@ -290,8 +319,7 @@ class _CategoryDonutState extends State<_CategoryDonut> {
 
     final sections = List.generate(keys.length, (i) {
       final isTouched = _touched == i;
-      final pct =
-          grandTotal > 0 ? totals[keys[i]]! / grandTotal * 100 : 0.0;
+      final pct = grandTotal > 0 ? totals[keys[i]]! / grandTotal * 100 : 0.0;
       return PieChartSectionData(
         value: totals[keys[i]]!,
         color: _color(i),
@@ -324,8 +352,8 @@ class _CategoryDonutState extends State<_CategoryDonut> {
                           response?.touchedSection == null) {
                         _touched = null;
                       } else {
-                        _touched = response!
-                            .touchedSection!.touchedSectionIndex;
+                        _touched =
+                            response!.touchedSection!.touchedSectionIndex;
                       }
                     });
                   },
@@ -339,8 +367,7 @@ class _CategoryDonutState extends State<_CategoryDonut> {
             runSpacing: 8,
             children: List.generate(keys.length, (i) {
               return Opacity(
-                opacity:
-                    (_touched == null || _touched == i) ? 1.0 : 0.35,
+                opacity: (_touched == null || _touched == i) ? 1.0 : 0.35,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -378,8 +405,7 @@ class _MonthBucket {
   final double total;
 }
 
-List<_MonthBucket> _buildMonthBuckets(
-    List<Receipt> receipts, _Period period) {
+List<_MonthBucket> _buildMonthBuckets(List<Receipt> receipts, _Period period) {
   final now = DateTime.now();
   int count;
 
@@ -411,17 +437,29 @@ List<_MonthBucket> _buildMonthBuckets(
     final start = DateTime(y, m);
     final end = m == 12 ? DateTime(y + 1, 1) : DateTime(y, m + 1);
     final total = receipts
-        .where((r) =>
-            !r.purchaseDate.isBefore(start) &&
-            r.purchaseDate.isBefore(end))
+        .where(
+          (r) =>
+              !r.purchaseDate.isBefore(start) && r.purchaseDate.isBefore(end),
+        )
         .fold(0.0, (s, r) => s + r.amount);
     return _MonthBucket(start, total);
   });
 }
 
 const List<String> _monthAbbr = [
-  '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  '',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 class _MonthlyBars extends StatelessWidget {
@@ -435,8 +473,7 @@ class _MonthlyBars extends StatelessWidget {
     final buckets = _buildMonthBuckets(receipts, period);
     if (buckets.isEmpty) return const SizedBox.shrink();
 
-    final maxVal =
-        buckets.map((b) => b.total).reduce(max);
+    final maxVal = buckets.map((b) => b.total).reduce(max);
     final chartMax = maxVal <= 0 ? 100.0 : maxVal * 1.25;
     final cs = Theme.of(context).colorScheme;
     final currency = _dominantCurrency(receipts);
@@ -445,8 +482,8 @@ class _MonthlyBars extends StatelessWidget {
     final barWidth = buckets.length <= 3
         ? 28.0
         : buckets.length <= 6
-            ? 18.0
-            : 10.0;
+        ? 18.0
+        : 10.0;
 
     return _Section(
       title: 'Monthly Trend',
@@ -466,16 +503,19 @@ class _MonthlyBars extends StatelessWidget {
                     color: cs.primary,
                     width: barWidth,
                     borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(4)),
+                      top: Radius.circular(4),
+                    ),
                   ),
                 ],
               ),
             ),
             titlesData: FlTitlesData(
               topTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false)),
+                sideTitles: SideTitles(showTitles: false),
+              ),
               rightTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false)),
+                sideTitles: SideTitles(showTitles: false),
+              ),
               leftTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
@@ -518,10 +558,8 @@ class _MonthlyBars extends StatelessWidget {
             gridData: FlGridData(
               show: true,
               drawVerticalLine: false,
-              getDrawingHorizontalLine: (_) => FlLine(
-                color: cs.outlineVariant,
-                strokeWidth: 1,
-              ),
+              getDrawingHorizontalLine: (_) =>
+                  FlLine(color: cs.outlineVariant, strokeWidth: 1),
             ),
             borderData: FlBorderData(show: false),
             barTouchData: BarTouchData(
@@ -586,8 +624,8 @@ class _TopVendors extends StatelessWidget {
                   child: Text(
                     '${i + 1}',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: cs.onSurfaceVariant,
-                        ),
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -607,9 +645,7 @@ class _TopVendors extends StatelessWidget {
                           ),
                           Text(
                             formatMoney(top[i].value, currency),
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
+                            style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -651,8 +687,7 @@ class _UpcomingWarranties extends StatelessWidget {
       if (!r.hasWarranty || r.warrantyExpiry == null) return false;
       final days = r.warrantyDaysRemaining;
       return days != null && days >= 0 && days <= 90;
-    }).toList()
-      ..sort((a, b) => a.warrantyExpiry!.compareTo(b.warrantyExpiry!));
+    }).toList()..sort((a, b) => a.warrantyExpiry!.compareTo(b.warrantyExpiry!));
 
     if (expiring.isEmpty) return const SizedBox.shrink();
 
@@ -671,13 +706,12 @@ class _UpcomingWarranties extends StatelessWidget {
               Icons.verified_user_outlined,
               color: urgent ? cs.error : cs.primary,
             ),
-            title: Text(r.title,
-                style: Theme.of(context).textTheme.bodyMedium),
+            title: Text(r.title, style: Theme.of(context).textTheme.bodyMedium),
             subtitle: Text(
               'Expires ${formatDate(r.warrantyExpiry!)}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: urgent ? cs.error : cs.onSurfaceVariant,
-                  ),
+                color: urgent ? cs.error : cs.onSurfaceVariant,
+              ),
             ),
             trailing: Text(
               relativeDay(r.warrantyExpiry!),
@@ -722,14 +756,13 @@ class _Section extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title,
-                style: Theme.of(context).textTheme.titleMedium),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 2),
             Text(
               subtitle,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
             child,
