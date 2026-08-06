@@ -37,6 +37,7 @@ Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.2.0
 
++ Remove file browser menu item [1.1.2 20260807 av]
 + Improve receipt loading efficiency [1.1.1 20260805 av]
 + Add AI capabilities [1.1.0 20260805 av]
 

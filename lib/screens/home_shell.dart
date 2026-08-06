@@ -36,9 +36,9 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   Future<void> _addReceipt() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AddEditReceiptScreen()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AddEditReceiptScreen()));
   }
 
   @override
@@ -64,12 +64,13 @@ class _HomeShellState extends State<HomeShell> {
           tooltip: 'Charts and statistics about your spending.',
           child: AnalyticsView(),
         ),
-        SolidMenuItem(
-          icon: Icons.folder_outlined,
-          title: 'Files',
-          tooltip: 'Browse the raw files stored on your Pod.',
-          child: SolidFile(),
-        ),
+        //av20260807: We do not need the file browser for this application
+        // SolidMenuItem(
+        //   icon: Icons.folder_outlined,
+        //   title: 'Files',
+        //   tooltip: 'Browse the raw files stored on your Pod.',
+        //   child: SolidFile(),
+        // ),
         SolidMenuItem(
           icon: Icons.auto_awesome_outlined,
           title: 'AI',
