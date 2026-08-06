@@ -54,7 +54,7 @@ class RecentReceiptsView extends StatelessWidget {
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {
-        if (store.status == StoreStatus.loading && !store.loadedOnce) {
+        if (store.status == StoreStatus.loading && store.receipts.isEmpty) {
           return const Center(child: CircularProgressIndicator());
         }
         if (store.status == StoreStatus.error && !store.loadedOnce) {

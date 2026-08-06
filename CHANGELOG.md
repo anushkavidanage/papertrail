@@ -35,15 +35,21 @@ then please show some ❤️ and tap on the star at
 This app is authored by [Anushka
 Vidanage](https://anushkavidanage.github.io/).
 
-## 1.0 Basic Functionality
+## 1.2.0
 
-+ BACKUP -> EXPORT. Cache profile. [1.0.20 20260719 gjw]
-+ Remember newly added categories [1.0.19 20260701 gjw]
-+ Add PDF to BACKUP and SEARCH [1.0.18 20260628 gjw]
-+ TITLE/STORE dropdown with known values [1.0.17 20260627 gjw]
-+ Support image zoom [1.0.16 20260627 gjw]
-+ Add ABOUT, and BACKUP/RESTORE [1.0.15 20260625 gjw]
-+ Setup installer build and meta data [1.0.14 20260625 gjw]
++ BACKUP -> EXPORT. Cache profile. [1.1.9 20260719 gjw]
++ Remember newly added categories [1.1.8 20260701 gjw]
++ Add PDF to BACKUP and SEARCH [1.1.7 20260628 gjw]
++ TITLE/STORE dropdown with known values [1.1.6 20260627 gjw]
++ Support image zoom [1.1.5 20260627 gjw]
++ Add ABOUT, and BACKUP/RESTORE [1.1.4 20260625 gjw]
++ Setup installer build and meta data [1.1.3 20260625 gjw]
++ Remove file browser menu item [1.1.2 20260807 av]
++ Improve receipt loading efficiency [1.1.1 20260805 av]
++ Add AI capabilities [1.1.0 20260805 av]
+
+## 1.1.0 Basic Functionality
+
 + Warranty expire notifications [1.0.13 20260618 av]
 + Show receipt total by category [1.0.12 20260617 av]
 + Bulk select and delete receipts [1.0.11 20260617 av]
