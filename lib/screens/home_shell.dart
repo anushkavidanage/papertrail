@@ -71,7 +71,16 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     return SolidScaffold(
-      appBar: const SolidAppBarConfig(title: appTitle),
+      // The version string sits in the app bar, as in the other Solid apps.
+      // Leaving [SolidVersionConfig.version] null lets solidui read it from
+      // the package metadata, so it tracks pubspec.yaml without duplication.
+      appBar: const SolidAppBarConfig(
+        title: appTitle,
+        versionConfig: SolidVersionConfig(
+          changelogUrl:
+              'https://github.com/anushkavidanage/papertrail/blob/dev/CHANGELOG.md',
+        ),
+      ),
       aboutConfig: SolidAboutConfig(
         applicationName: appTitle,
         applicationIcon: Image.asset(
