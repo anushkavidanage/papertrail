@@ -155,6 +155,21 @@ class _HomeShellState extends State<HomeShell> {
           child: BackupView(),
         ),
       ],
+      // The bottom status bar: login/server status on the left and the
+      // security key manager on the right. SolidScaffold tracks the actual
+      // key state itself, so no local flag is needed here.
+      statusBar: const SolidStatusBarConfig(
+        loginStatus: SolidLoginStatus(
+          loggedInText: 'Pod: Connected',
+          loggedOutText: 'Pod: Not connected',
+        ),
+        securityKeyStatus: SolidSecurityKeyStatus(
+          title: 'Papertrail Security Keys',
+          tooltip:
+              '**Security Keys**\n\nManage your Solid Pod encryption key. '
+              'Tap to view, change or forget the key.',
+        ),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addReceipt,
         icon: const Icon(Icons.add),
