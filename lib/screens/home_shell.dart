@@ -37,9 +37,9 @@ import '../widgets/locked_backdrop.dart';
 import 'add_edit_receipt_screen.dart';
 import 'ai_assistant_view.dart';
 import 'all_receipts_view.dart';
-import 'ollama_chat_screen.dart';
 import 'analytics_view.dart';
 import 'backup_view.dart';
+import 'ollama_chat_screen.dart';
 import 'recent_receipts_view.dart';
 
 class HomeShell extends StatefulWidget {

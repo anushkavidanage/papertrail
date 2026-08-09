@@ -29,13 +29,14 @@ library;
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/foundation.dart' show compute, visibleForTesting;
 import 'package:flutter/material.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:solidui/solidui.dart';
 import 'package:uuid/uuid.dart';
 
 import '../constants/app_config.dart';
@@ -83,8 +84,23 @@ class _ExtraSlot {
 // Screen widget
 // ---------------------------------------------------------------------------
 
+/// Signature of [ReceiptStore.save] — the form's single persistence path.
+typedef SaveReceipt =
+    Future<void> Function(
+      Receipt receipt, {
+      String? attachmentPath,
+      bool removeAttachment,
+      Map<String, String> extraAttachmentPaths,
+      List<String> extraAttachmentIdsToDelete,
+    });
+
 class AddEditReceiptScreen extends StatefulWidget {
-  const AddEditReceiptScreen({super.key, this.existing, this.duplicateFrom});
+  const AddEditReceiptScreen({
+    super.key,
+    this.existing,
+    this.duplicateFrom,
+    this.onSave,
+  });
 
   /// When non-null the form edits this receipt; otherwise it creates one.
   final Receipt? existing;
@@ -93,6 +109,12 @@ class AddEditReceiptScreen extends StatefulWidget {
   /// brand-new entry (new UUID, no attachments copied).
   final Receipt? duplicateFrom;
 
+  /// Replaces the Pod write, so a test can hold the save open and check that
+  /// the window-close prompt really waits for it. Null in the app, where the
+  /// shared [ReceiptStore] is used.
+  @visibleForTesting
+  final SaveReceipt? onSave;
+
   bool get isEditing => existing != null;
   bool get isDuplicating => duplicateFrom != null;
 
@@ -100,7 +122,8 @@ class AddEditReceiptScreen extends StatefulWidget {
   State<AddEditReceiptScreen> createState() => _AddEditReceiptScreenState();
 }
 
-class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
+class _AddEditReceiptScreenState extends State<AddEditReceiptScreen>
+    with UnsavedChangesMixin {
   final _formKey = GlobalKey<FormState>();
   final _uuid = const Uuid();
 
@@ -133,6 +156,9 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
   final List<String> _removedExtraIds = [];
 
   bool _saving = false;
+
+  /// [_signature] as it was when the form was last written to the Pod.
+  late String _savedSignature;
 
   /// Sorted list of distinct vendors from existing receipts, for autocomplete.
   late final List<String> _knownVendors;
@@ -194,7 +220,38 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
                 ),
               )
               .toList();
+
+    _savedSignature = _signature;
   }
+
+  /// A value fingerprint of everything the form holds, compared against
+  /// [_savedSignature] to tell whether there are edits still to be written.
+  ///
+  /// Computed on demand rather than flagged from each individual mutation, so
+  /// that reverting an edit correctly makes the form clean again.
+  String get _signature => [
+    _titleController.text,
+    _amountController.text,
+    _vendorController.text,
+    _descriptionController.text,
+    _currency,
+    _purchaseDate.toIso8601String(),
+    (_categories.toList()..sort()).join(','),
+    (_flags.toList()..sort()).join(','),
+    '$_hasWarranty',
+    '${_warrantyExpiry?.toIso8601String()}',
+    '$_pickedPath',
+    '$_pickedExt',
+    '$_removeAttachment',
+    _extraSlots
+        .map(
+          (s) =>
+              '${s.id}:${s.effectiveExtension}:${s.pickedPath}:'
+              '${s.description.text}',
+        )
+        .join('|'),
+    _removedExtraIds.join(','),
+  ].join('\u0000');
 
   @override
   void dispose() {
@@ -572,11 +629,16 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
   // Save
   // -------------------------------------------------------------------------
 
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+  /// Write the form's receipt to the Pod, returning it once the write has
+  /// landed, or null when the form is invalid or the write failed.
+  ///
+  /// Deliberately does not pop: on the window-close path the whole window is
+  /// going away rather than just this route, so popping is left to [_save].
+  Future<Receipt?> _persist() async {
+    if (!_formKey.currentState!.validate()) return null;
     if (_hasWarranty && _warrantyExpiry == null) {
       _showSnack('Please set a warranty expiry date, or turn warranty off.');
-      return;
+      return null;
     }
 
     final amount = double.parse(
@@ -622,27 +684,99 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen> {
 
     setState(() => _saving = true);
     try {
-      await ReceiptStore.instance.save(
+      // Awaited so a window close can wait for the Pod write to complete.
+      await (widget.onSave ?? ReceiptStore.instance.save)(
         receipt,
         attachmentPath: _pickedPath,
         removeAttachment: _removeAttachment && _pickedPath == null,
         extraAttachmentPaths: extraPaths,
         extraAttachmentIdsToDelete: _removedExtraIds,
       );
-      if (!mounted) return;
-      Navigator.of(context).pop(receipt);
+      // Snapshot only once the write has actually landed. Marking the form
+      // saved on a failed write would silence the window-close prompt, losing
+      // the very receipt the user asked to keep.
+      _savedSignature = _signature;
+      return receipt;
     } catch (e) {
-      setState(() => _saving = false);
-      _showSnack('Could not save receipt: $e');
+      if (mounted) setState(() => _saving = false);
+      // Reported rather than shown in a SnackBar: on the window-close path
+      // the Scaffold is going away, so a SnackBar would never be seen.
+      // SolidWriteFailureListener in app.dart raises this as a modal.
+      SolidWriteFailures.report('Failed saving the receipt.\n\n$e');
+      return null;
     }
   }
+
+  /// Save from the form's own Save button, closing the editor on success.
+  Future<void> _save() async {
+    final saved = await _persist();
+    if (saved == null || !mounted) return;
+    Navigator.of(context).pop(saved);
+  }
+
+  // The window-close prompt comes from UnsavedChangesMixin, which needs to
+  // know what counts as unsaved, whether it can be saved, and how to save it.
+
+  @override
+  bool get hasUnsavedChanges => _signature != _savedSignature;
+
+  /// Running the form's own validators answers the question and, when the
+  /// close is aborted, also shows the user which field still needs filling in.
+  @override
+  bool get canSaveUnsavedChanges =>
+      (_formKey.currentState?.validate() ?? false) &&
+      !(_hasWarranty && _warrantyExpiry == null);
+
+  /// A null receipt means nothing reached the Pod — either the form did not
+  /// validate or the write failed — so the close must be aborted.
+  @override
+  Future<bool> saveUnsavedChanges() async => await _persist() != null;
 
   // -------------------------------------------------------------------------
   // Build
   // -------------------------------------------------------------------------
 
+  /// Leave the editor, asking first when there are unsaved edits.
+
+  Future<void> _confirmDiscard() async {
+    if (!hasUnsavedChanges) {
+      Navigator.of(context).pop();
+
+      return;
+    }
+    final action = await showUnsavedChangesDialog(context);
+    if (!mounted) return;
+    switch (action) {
+      case UnsavedChangesAction.save:
+        if (await _persist() == null) return;
+        if (mounted) Navigator.of(context).pop();
+      case UnsavedChangesAction.discard:
+        Navigator.of(context).pop();
+      case UnsavedChangesAction.keepEditing:
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      // Back used to leave silently, discarding everything typed — the same
+      // loss the window-close prompt exists to prevent.
+      //
+      // Always false rather than `!hasUnsavedChanges`: this form has no
+      // controller listeners, so it does not rebuild as the user types and a
+      // canPop captured at build time would still say "nothing to lose".
+      // _confirmDiscard re-checks live and pops straight away when clean.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _confirmDiscard();
+      },
+      child: _buildForm(context),
+    );
+  }
+
+  Widget _buildForm(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(

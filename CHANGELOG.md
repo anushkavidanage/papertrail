@@ -37,6 +37,7 @@ Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.1
 
++ Prompt to save an edited receipt on close or BACK [1.1.11 20260809 gjw]
 + Add the Solid status bar to the bottom of the window [1.1.10 20260809 gjw]
 + BACKUP -> EXPORT. Cache profile. [1.1.9 20260719 gjw]
 + Remember newly added categories [1.1.8 20260701 gjw]

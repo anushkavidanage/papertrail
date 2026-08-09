@@ -1,7 +1,7 @@
 name: papertrail
 description: "Track your purchase receipts, stored securely in your own Solid Pod."
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
-version: 1.1.10+1
+version: 1.1.11+1
 
 environment:
   sdk: ^3.12.0
@@ -43,6 +43,10 @@ dependencies:
   # Charts for the Analytics screen.
   fl_chart: ^1.2.0
 
+  # Intercept the desktop title-bar close button so a receipt with unsaved
+  # changes can be saved rather than silently lost.
+  window_manager: ^0.5.1
+
   # Pure-Dart image decoding / re-encoding used to compress oversized photos.
   image: ^4.8.0
 
@@ -57,6 +61,9 @@ dependencies:
   flutter_secure_storage: ^10.3.1  # Encrypted storage for API keys
 
 dev_dependencies:
+
+  flutter_test:
+    sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

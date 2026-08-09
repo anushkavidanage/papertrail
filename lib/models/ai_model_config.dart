@@ -35,46 +35,44 @@ class LocalModelConfig {
     String? url,
     int? sizeMb,
     bool? isCustom,
-  }) =>
-      LocalModelConfig(
-        id: id,
-        name: name ?? this.name,
-        description: description,
-        url: url ?? this.url,
-        sizeMb: sizeMb ?? this.sizeMb,
-        modelType: modelType,
-        fileType: fileType,
-        isCustom: isCustom ?? this.isCustom,
-      );
+  }) => LocalModelConfig(
+    id: id,
+    name: name ?? this.name,
+    description: description,
+    url: url ?? this.url,
+    sizeMb: sizeMb ?? this.sizeMb,
+    modelType: modelType,
+    fileType: fileType,
+    isCustom: isCustom ?? this.isCustom,
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'description': description,
-        'url': url,
-        'sizeMb': sizeMb,
-        'isCustom': isCustom,
-        'modelTypeName': modelType.name,
-        'fileTypeName': fileType.name,
-      };
+    'id': id,
+    'name': name,
+    'description': description,
+    'url': url,
+    'sizeMb': sizeMb,
+    'isCustom': isCustom,
+    'modelTypeName': modelType.name,
+    'fileTypeName': fileType.name,
+  };
 
-  factory LocalModelConfig.fromJson(Map<String, dynamic> j) =>
-      LocalModelConfig(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        description: j['description'] as String? ?? '',
-        url: j['url'] as String,
-        sizeMb: j['sizeMb'] as int? ?? 0,
-        modelType: ModelType.values.firstWhere(
-          (e) => e.name == j['modelTypeName'],
-          orElse: () => ModelType.qwen3,
-        ),
-        fileType: ModelFileType.values.firstWhere(
-          (e) => e.name == j['fileTypeName'],
-          orElse: () => ModelFileType.litertlm,
-        ),
-        isCustom: j['isCustom'] as bool? ?? true,
-      );
+  factory LocalModelConfig.fromJson(Map<String, dynamic> j) => LocalModelConfig(
+    id: j['id'] as String,
+    name: j['name'] as String,
+    description: j['description'] as String? ?? '',
+    url: j['url'] as String,
+    sizeMb: j['sizeMb'] as int? ?? 0,
+    modelType: ModelType.values.firstWhere(
+      (e) => e.name == j['modelTypeName'],
+      orElse: () => ModelType.qwen3,
+    ),
+    fileType: ModelFileType.values.firstWhere(
+      (e) => e.name == j['fileTypeName'],
+      orElse: () => ModelFileType.litertlm,
+    ),
+    isCustom: j['isCustom'] as bool? ?? true,
+  );
 }
 
 /// Predefined on-device models the user can choose from.
