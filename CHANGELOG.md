@@ -37,6 +37,7 @@ Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.1
 
++ Restore receipt attachments from a backup [1.1.13 20260809 gjw]
 + Show the app version in the top bar [1.1.12 20260809 gjw]
 + Prompt to save an edited receipt on close or BACK [1.1.11 20260809 gjw]
 + Add the Solid status bar to the bottom of the window [1.1.10 20260809 gjw]
