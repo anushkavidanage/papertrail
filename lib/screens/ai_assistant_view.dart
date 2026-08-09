@@ -698,7 +698,9 @@ class _LocalModelTabState extends State<_LocalModelTab> {
                         controller: _urlCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Model URL (.litertlm)',
-                          hintText: 'https://huggingface.co/…/model.litertlm',
+                          hintText:
+                              'https://huggingface.co/'
+                              '…/model.litertlm',
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),

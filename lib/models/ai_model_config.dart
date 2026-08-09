@@ -82,7 +82,8 @@ const kBuiltInLocalModels = [
     name: 'Qwen3 0.6B',
     description: 'Fast, lightweight. Good for everyday queries.',
     url:
-        'https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/Qwen3-0.6B.litertlm',
+        'https://huggingface.co/litert-community/Qwen3-0.6B/'
+        'resolve/main/Qwen3-0.6B.litertlm',
     sizeMb: 586,
     modelType: ModelType.qwen3,
     fileType: ModelFileType.litertlm,
@@ -92,7 +93,8 @@ const kBuiltInLocalModels = [
     name: 'Qwen3 1.7B',
     description: 'Stronger reasoning and better accuracy. Requires ~1.1 GB.',
     url:
-        'https://huggingface.co/litert-community/Qwen3-1.7B/resolve/main/Qwen3-1.7B.litertlm',
+        'https://huggingface.co/litert-community/Qwen3-1.7B/'
+        'resolve/main/Qwen3-1.7B.litertlm',
     sizeMb: 1100,
     modelType: ModelType.qwen3,
     fileType: ModelFileType.litertlm,
