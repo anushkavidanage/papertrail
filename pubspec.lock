@@ -742,7 +742,7 @@ packages:
     source: hosted
     version: "7.3.1"
   markdown_tooltip:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: markdown_tooltip
       sha256: a2a47673d24c921be25fc04341bf3a865a1b6c5c6356dff0bee3f1fa122757ca
@@ -949,6 +949,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.2.1"
+  pasteboard:
+    dependency: "direct main"
+    description:
+      name: pasteboard
+      sha256: fedbe8da188d2f713aa8b01260737342e6e1087534a3ab26e1a719f8d3e8f32f
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.0"
   path:
     dependency: transitive
     description:

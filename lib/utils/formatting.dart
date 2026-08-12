@@ -48,6 +48,20 @@ String formatDate(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
 String formatMoney(double amount, String currency) =>
     '$currency ${amount.toStringAsFixed(2)}';
 
+/// A filename for a receipt's downloaded attachment, e.g. "logi-presenter.jpg".
+///
+/// Built from the receipt title so a saved file is recognisable, rather than
+/// from the UUID the Pod stores it under. Anything that is not a letter or
+/// digit becomes a hyphen, so the result is safe on every platform.
+
+String attachmentFileName(String title, String extension) {
+  final stem = title
+      .toLowerCase()
+      .replaceAll(RegExp('[^a-z0-9]+'), '-')
+      .replaceAll(RegExp('^-+|-+\$'), '');
+  return '${stem.isEmpty ? 'receipt' : stem}.$extension';
+}
+
 /// Human friendly description of how far away [date] is from today.
 String relativeDay(DateTime date) {
   final today = DateTime.now();

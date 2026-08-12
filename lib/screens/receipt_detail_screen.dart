@@ -32,7 +32,10 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import 'package:file_picker/file_picker.dart';
+import 'package:markdown_tooltip/markdown_tooltip.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:pasteboard/pasteboard.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/receipt.dart';
@@ -111,6 +114,79 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
     }
   }
 
+  /// Put the receipt's attachment on the clipboard.
+  ///
+  /// Everywhere but Linux the image bytes go on the clipboard, so the receipt
+  /// can be pasted straight into a document. pasteboard has no writeImage on
+  /// Linux, so there the attachment is written to a temporary file and the
+  /// file itself is copied, which pastes into a file manager or an email.
+  /// A PDF is a file on every platform — there are no image bytes to offer.
+
+  Future<void> _copy(Receipt receipt) async {
+    setState(() => _busy = true);
+    try {
+      final bytes = await PodService.instance.readAttachmentBytes(receipt.id);
+      final asFile =
+          Platform.isLinux || receipt.attachmentKind != AttachmentKind.image;
+
+      if (asFile) {
+        final dir = await getTemporaryDirectory();
+        final file = File(
+          '${dir.path}/${attachmentFileName(receipt.title, receipt.attachmentExtension!)}',
+        );
+        await file.writeAsBytes(bytes);
+        final copied = await Pasteboard.writeFiles([file.path]);
+        _showSnack(
+          copied
+              ? 'Copied the attachment as a file.'
+              : 'Could not copy the attachment.',
+        );
+      } else {
+        await Pasteboard.writeImage(bytes);
+        _showSnack('Copied the attachment image.');
+      }
+    } catch (e) {
+      _showSnack('Could not copy the attachment: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Save the receipt's attachment to a location the user chooses.
+  ///
+  /// The bytes come from the Pod rather than the on-screen image so a PDF
+  /// downloads as readily as a photo.
+
+  Future<void> _download(Receipt receipt) async {
+    setState(() => _busy = true);
+    try {
+      final bytes = await PodService.instance.readAttachmentBytes(receipt.id);
+      final savePath = await FilePicker.saveFile(
+        dialogTitle: 'Save attachment',
+        fileName: attachmentFileName(
+          receipt.title,
+          receipt.attachmentExtension!,
+        ),
+        type: FileType.custom,
+        allowedExtensions: [receipt.attachmentExtension!],
+      );
+      if (savePath == null) return; // Cancelled.
+      await File(savePath).writeAsBytes(bytes);
+      _showSnack('Saved to $savePath');
+    } catch (e) {
+      _showSnack('Could not save the attachment: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -126,24 +202,103 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
             ),
           );
         }
+        final hasAttachment = receipt.attachmentExtension != null;
         return Scaffold(
           appBar: AppBar(
             title: const Text('Receipt'),
             actions: [
-              IconButton(
-                tooltip: 'Duplicate',
-                icon: const Icon(Icons.content_copy_outlined),
-                onPressed: _busy ? null : () => _duplicate(receipt),
+              // MarkdownTooltip wraps the button rather than using the
+              // tooltip: parameter, so the guidance still shows when the
+              // button is disabled and can explain why.
+              MarkdownTooltip(
+                message: hasAttachment
+                    ? '''
+
+**Copy**
+
+Put the receipt's attachment on the clipboard, ready to paste into a
+document or an email.
+
+'''
+                    : '''
+
+**Copy**
+
+Unavailable: this receipt has no attachment to copy. Add a photo or PDF by
+editing the receipt.
+
+''',
+                child: IconButton(
+                  icon: const Icon(Icons.copy_all_outlined),
+                  onPressed: _busy || !hasAttachment
+                      ? null
+                      : () => _copy(receipt),
+                ),
               ),
-              IconButton(
-                tooltip: 'Edit',
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: _busy ? null : () => _edit(receipt),
+              MarkdownTooltip(
+                message: hasAttachment
+                    ? '''
+
+**Download**
+
+Save the receipt's attachment to a folder of your choosing.
+
+'''
+                    : '''
+
+**Download**
+
+Unavailable: this receipt has no attachment to save. Add a photo or PDF by
+editing the receipt.
+
+''',
+                child: IconButton(
+                  icon: const Icon(Icons.download_outlined),
+                  onPressed: _busy || !hasAttachment
+                      ? null
+                      : () => _download(receipt),
+                ),
               ),
-              IconButton(
-                tooltip: 'Delete',
-                icon: const Icon(Icons.delete_outline),
-                onPressed: _busy ? null : () => _delete(receipt),
+              MarkdownTooltip(
+                message: '''
+
+**Duplicate**
+
+Start a new receipt pre-filled from this one. The attachments are not
+copied.
+
+''',
+                child: IconButton(
+                  icon: const Icon(Icons.content_copy_outlined),
+                  onPressed: _busy ? null : () => _duplicate(receipt),
+                ),
+              ),
+              MarkdownTooltip(
+                message: '''
+
+**Edit**
+
+Change any of this receipt's details or its attachments.
+
+''',
+                child: IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: _busy ? null : () => _edit(receipt),
+                ),
+              ),
+              MarkdownTooltip(
+                message: '''
+
+**Delete**
+
+Permanently remove this receipt and its attachments from your Pod. You will
+be asked to confirm.
+
+''',
+                child: IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: _busy ? null : () => _delete(receipt),
+                ),
               ),
             ],
           ),

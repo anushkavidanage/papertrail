@@ -35,6 +35,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:markdown_tooltip/markdown_tooltip.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:solidui/solidui.dart';
 import 'package:uuid/uuid.dart';
@@ -1433,11 +1434,20 @@ class _ExtraSlotTile extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  tooltip: 'Remove this file',
-                  onPressed: onRemove,
-                  visualDensity: VisualDensity.compact,
+                MarkdownTooltip(
+                  message: '''
+
+**Remove This File**
+
+Drop this extra file from the receipt. A file already on your Pod is deleted
+when you save.
+
+''',
+                  child: IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: onRemove,
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
               ],
             ),

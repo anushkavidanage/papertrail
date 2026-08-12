@@ -30,6 +30,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:markdown_tooltip/markdown_tooltip.dart';
 
 import '../models/ai_model_config.dart';
 import '../models/receipt.dart';
@@ -208,10 +209,19 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                             setState(() => _tab = s.first),
                       ),
                     ),
-                    IconButton(
-                      onPressed: _openSettings,
-                      icon: const Icon(Icons.settings_outlined),
-                      tooltip: 'AI settings',
+                    MarkdownTooltip(
+                      message: '''
+
+**AI Settings**
+
+Choose the backend, download or remove on-device models, and manage your API
+key.
+
+''',
+                      child: IconButton(
+                        onPressed: _openSettings,
+                        icon: const Icon(Icons.settings_outlined),
+                      ),
                     ),
                   ],
                 ),
@@ -683,10 +693,19 @@ class _LocalModelTabState extends State<_LocalModelTab> {
                         ),
                       ),
                       if (isInstalled && !isActive)
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          tooltip: 'Remove from device',
-                          onPressed: () => _deleteModel(m),
+                        MarkdownTooltip(
+                          message: '''
+
+**Remove From Device**
+
+Delete this model's downloaded files to free up disk space. You can download
+it again later.
+
+''',
+                          child: IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => _deleteModel(m),
+                          ),
                         ),
                       if (!isInstalled)
                         Text(
@@ -856,17 +875,25 @@ class _AnthropicTabState extends State<_AnthropicTab> {
                   ),
                   onPressed: () => setState(() => _obscure = !_obscure),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.copy_outlined),
-                  tooltip: 'Copy',
-                  onPressed: () {
-                    Clipboard.setData(
-                      ClipboardData(text: _keyCtrl.text.trim()),
-                    );
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(const SnackBar(content: Text('Copied')));
-                  },
+                MarkdownTooltip(
+                  message: '''
+
+**Copy**
+
+Put the API key on the clipboard so you can paste it elsewhere.
+
+''',
+                  child: IconButton(
+                    icon: const Icon(Icons.copy_outlined),
+                    onPressed: () {
+                      Clipboard.setData(
+                        ClipboardData(text: _keyCtrl.text.trim()),
+                      );
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(const SnackBar(content: Text('Copied')));
+                    },
+                  ),
                 ),
               ],
             ),

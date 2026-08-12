@@ -36,6 +36,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'package:markdown_tooltip/markdown_tooltip.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/receipt.dart';
@@ -304,17 +305,42 @@ class _OllamaChatScreenState extends State<OllamaChatScreen> {
                 ),
               ),
               if (_messages.isNotEmpty)
-                IconButton(
-                  onPressed: _isStreaming
-                      ? null
-                      : () => setState(() => _messages.clear()),
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Clear conversation',
+                MarkdownTooltip(
+                  message: _isStreaming
+                      ? '''
+
+**Clear Conversation**
+
+Unavailable while a reply is still streaming. Wait for it to finish.
+
+'''
+                      : '''
+
+**Clear Conversation**
+
+Discard the messages so far and start a fresh conversation.
+
+''',
+                  child: IconButton(
+                    onPressed: _isStreaming
+                        ? null
+                        : () => setState(() => _messages.clear()),
+                    icon: const Icon(Icons.delete_outline),
+                  ),
                 ),
-              IconButton(
-                onPressed: _openSettings,
-                icon: const Icon(Icons.settings_outlined),
-                tooltip: 'Ollama settings',
+              MarkdownTooltip(
+                message: '''
+
+**Ollama Settings**
+
+Set the address of your Ollama server and choose which of its models to chat
+with.
+
+''',
+                child: IconButton(
+                  onPressed: _openSettings,
+                  icon: const Icon(Icons.settings_outlined),
+                ),
               ),
             ],
           ),
