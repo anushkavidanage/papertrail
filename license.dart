@@ -1,5 +1,7 @@
 /// A Paper Receipts Manager
 ///
+// Time-stamp: <Thursday 2026-02-19 09:59:21 +1100 Graham Williams>
+///
 /// Copyright (C) 2026, Anushka Vidanage
 ///
 /// Licensed under the GNU General Public License, Version 3 (the "License");
