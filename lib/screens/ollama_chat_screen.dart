@@ -4,12 +4,39 @@
 /// the model has full spending context. Thinking tokens (supported by Qwen3
 /// via the Ollama `think` parameter) are displayed in a collapsible block
 /// before the final answer.
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+
+import 'package:markdown_tooltip/markdown_tooltip.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/receipt.dart';
@@ -278,17 +305,42 @@ class _OllamaChatScreenState extends State<OllamaChatScreen> {
                 ),
               ),
               if (_messages.isNotEmpty)
-                IconButton(
-                  onPressed: _isStreaming
-                      ? null
-                      : () => setState(() => _messages.clear()),
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Clear conversation',
+                MarkdownTooltip(
+                  message: _isStreaming
+                      ? '''
+
+**Clear Conversation**
+
+Unavailable while a reply is still streaming. Wait for it to finish.
+
+'''
+                      : '''
+
+**Clear Conversation**
+
+Discard the messages so far and start a fresh conversation.
+
+''',
+                  child: IconButton(
+                    onPressed: _isStreaming
+                        ? null
+                        : () => setState(() => _messages.clear()),
+                    icon: const Icon(Icons.delete_outline),
+                  ),
                 ),
-              IconButton(
-                onPressed: _openSettings,
-                icon: const Icon(Icons.settings_outlined),
-                tooltip: 'Ollama settings',
+              MarkdownTooltip(
+                message: '''
+
+**Ollama Settings**
+
+Set the address of your Ollama server and choose which of its models to chat
+with.
+
+''',
+                child: IconButton(
+                  onPressed: _openSettings,
+                  icon: const Icon(Icons.settings_outlined),
+                ),
               ),
             ],
           ),

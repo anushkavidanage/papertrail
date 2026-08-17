@@ -37,9 +37,9 @@ import '../widgets/locked_backdrop.dart';
 import 'add_edit_receipt_screen.dart';
 import 'ai_assistant_view.dart';
 import 'all_receipts_view.dart';
-import 'ollama_chat_screen.dart';
 import 'analytics_view.dart';
 import 'backup_view.dart';
+import 'ollama_chat_screen.dart';
 import 'recent_receipts_view.dart';
 
 class HomeShell extends StatefulWidget {
@@ -71,7 +71,16 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     return SolidScaffold(
-      appBar: const SolidAppBarConfig(title: appTitle),
+      // The version string sits in the app bar, as in the other Solid apps.
+      // Leaving [SolidVersionConfig.version] null lets solidui read it from
+      // the package metadata, so it tracks pubspec.yaml without duplication.
+      appBar: const SolidAppBarConfig(
+        title: appTitle,
+        versionConfig: SolidVersionConfig(
+          changelogUrl:
+              'https://github.com/anushkavidanage/papertrail/blob/dev/CHANGELOG.md',
+        ),
+      ),
       aboutConfig: SolidAboutConfig(
         applicationName: appTitle,
         applicationIcon: Image.asset(
@@ -155,6 +164,21 @@ class _HomeShellState extends State<HomeShell> {
           child: BackupView(),
         ),
       ],
+      // The bottom status bar: login/server status on the left and the
+      // security key manager on the right. SolidScaffold tracks the actual
+      // key state itself, so no local flag is needed here.
+      statusBar: const SolidStatusBarConfig(
+        loginStatus: SolidLoginStatus(
+          loggedInText: 'Pod: Connected',
+          loggedOutText: 'Pod: Not connected',
+        ),
+        securityKeyStatus: SolidSecurityKeyStatus(
+          title: 'Papertrail Security Keys',
+          tooltip:
+              '**Security Keys**\n\nManage your Solid Pod encryption key. '
+              'Tap to view, change or forget the key.',
+        ),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addReceipt,
         icon: const Icon(Icons.add),

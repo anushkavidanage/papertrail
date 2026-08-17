@@ -1,7 +1,7 @@
 name: papertrail
 description: "Track your purchase receipts, stored securely in your own Solid Pod."
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
-version: 1.0.10+1
+version: 1.1.15+1
 
 environment:
   sdk: ^3.12.0
@@ -15,8 +15,8 @@ dependencies:
   cupertino_icons: ^1.0.9
 
   # Solid Pod integration: storage, encryption, auth, and ready-made UI.
-  solidpod: ^1.0.10
-  solidui: ^1.0.21
+  solidpod: ^1.0.15
+  solidui: ^1.0.32
 
   # Create ZIP archives for backup and restore.
   archive: ^4.0.9
@@ -43,6 +43,10 @@ dependencies:
   # Charts for the Analytics screen.
   fl_chart: ^1.2.0
 
+  # Intercept the desktop title-bar close button so a receipt with unsaved
+  # changes can be saved rather than silently lost.
+  window_manager: ^0.5.1
+
   # Pure-Dart image decoding / re-encoding used to compress oversized photos.
   image: ^4.8.0
 
@@ -55,8 +59,18 @@ dependencies:
   flutter_gemma_litertlm: ^1.0.1  # LiteRT-LM inference engine (Android/iOS/macOS/Windows)
   shared_preferences: ^2.5.5       # Non-sensitive AI settings (backend, active model)
   flutter_secure_storage: ^10.3.1  # Encrypted storage for API keys
+  # Copy a receipt attachment to the clipboard. Images go to the clipboard
+  # directly except on Linux, where the package has no writeImage and the
+  # file itself is copied instead.
+  pasteboard: ^0.5.0
+
+  # Tooltips with Markdown and a popup delay, shown on disabled buttons too.
+  markdown_tooltip: ^0.0.10
 
 dev_dependencies:
+
+  flutter_test:
+    sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

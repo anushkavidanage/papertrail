@@ -29,6 +29,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:markdown_tooltip/markdown_tooltip.dart';
+
 import '../models/receipt.dart';
 import '../services/receipt_store.dart';
 import '../services/receipts_pdf.dart';
@@ -312,10 +314,19 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
         padding: const EdgeInsets.symmetric(horizontal: 4),
         child: Row(
           children: [
-            IconButton(
-              icon: const Icon(Icons.close),
-              tooltip: 'Exit selection',
-              onPressed: _exitSelectionMode,
+            MarkdownTooltip(
+              message: '''
+
+**Exit Selection**
+
+Leave selection mode. Nothing is deleted and the receipts you ticked are
+simply deselected.
+
+''',
+              child: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _exitSelectionMode,
+              ),
             ),
             const SizedBox(width: 4),
             Expanded(
@@ -341,12 +352,28 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   )
-                : IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    tooltip: count == 0
-                        ? 'Select receipts to delete'
-                        : 'Delete $count receipt${count == 1 ? '' : 's'}',
-                    onPressed: count == 0 ? null : _deleteSelected,
+                : MarkdownTooltip(
+                    message: count == 0
+                        ? '''
+
+**Delete**
+
+Unavailable: no receipts are selected. Tick the receipts you want to remove
+first.
+
+'''
+                        : '''
+
+**Delete**
+
+Permanently remove the $count selected receipt${count == 1 ? '' : 's'} and
+their attachments from your Pod.
+
+''',
+                    child: IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: count == 0 ? null : _deleteSelected,
+                    ),
                   ),
           ],
         ),
@@ -356,35 +383,48 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
 
   Widget _sortButton(BuildContext context) {
     final active = _sort != _SortOption.dateDesc;
-    return PopupMenuButton<_SortOption>(
-      icon: Icon(
-        Icons.swap_vert,
-        color: active ? Theme.of(context).colorScheme.primary : null,
-      ),
-      tooltip: 'Sort',
-      onSelected: (opt) => setState(() => _sort = opt),
-      itemBuilder: (_) => _SortOption.values
-          .map(
-            (opt) => PopupMenuItem<_SortOption>(
-              value: opt,
-              child: Row(
-                children: [
-                  Icon(opt.icon, size: 18),
-                  const SizedBox(width: 10),
-                  Text(opt.label),
-                  if (_sort == opt) ...[
-                    const Spacer(),
-                    Icon(
-                      Icons.check,
-                      size: 18,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+    return MarkdownTooltip(
+      message: '''
+
+**Sort**
+
+Choose the order the receipts are listed in — by date, amount, title or
+store. The icon is highlighted while a non-default order is active.
+
+''',
+      child: PopupMenuButton<_SortOption>(
+        icon: Icon(
+          Icons.swap_vert,
+          color: active ? Theme.of(context).colorScheme.primary : null,
+        ),
+        // Emptied rather than removed: with no tooltip PopupMenuButton falls
+        // back to the localised "Show menu", which would pop up alongside the
+        // MarkdownTooltip wrapping it.
+        tooltip: '',
+        onSelected: (opt) => setState(() => _sort = opt),
+        itemBuilder: (_) => _SortOption.values
+            .map(
+              (opt) => PopupMenuItem<_SortOption>(
+                value: opt,
+                child: Row(
+                  children: [
+                    Icon(opt.icon, size: 18),
+                    const SizedBox(width: 10),
+                    Text(opt.label),
+                    if (_sort == opt) ...[
+                      const Spacer(),
+                      Icon(
+                        Icons.check,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-          )
-          .toList(),
+            )
+            .toList(),
+      ),
     );
   }
 
@@ -560,6 +600,11 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
         final categories = store.usedCategories;
         final filtered = _apply(store.receipts);
 
+        // Pulled out so the tooltip prose below reads as prose, rather than
+        // wrapping mid-interpolation.
+        final matched = filtered.length;
+        final plural = matched == 1 ? '' : 's';
+
         return Column(
           children: [
             // Selection bar (replaces search/filter UI while in selection mode)
@@ -602,23 +647,53 @@ class _AllReceiptsViewState extends State<AllReceiptsView> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                           )
-                        : IconButton(
-                            icon: const Icon(Icons.download_outlined),
-                            tooltip: filtered.isEmpty
-                                ? 'No receipts to export'
-                                : 'Export ${filtered.length} receipt${filtered.length == 1 ? '' : 's'} to CSV',
-                            onPressed: filtered.isEmpty
-                                ? null
-                                : () => _exportCsv(filtered),
+                        : MarkdownTooltip(
+                            message: filtered.isEmpty
+                                ? '''
+
+**Export CSV**
+
+Unavailable: no receipts match the current search and filters.
+
+'''
+                                : '''
+
+**Export CSV**
+
+Save the $matched matching receipt$plural as a spreadsheet. Only what is
+listed here is exported, so narrow the filters first to export a subset.
+
+''',
+                            child: IconButton(
+                              icon: const Icon(Icons.download_outlined),
+                              onPressed: filtered.isEmpty
+                                  ? null
+                                  : () => _exportCsv(filtered),
+                            ),
                           ),
-                    IconButton(
-                      icon: const Icon(Icons.picture_as_pdf_outlined),
-                      tooltip: filtered.isEmpty
-                          ? 'No receipts to view'
-                          : 'View ${filtered.length} receipt${filtered.length == 1 ? '' : 's'} as PDF',
-                      onPressed: filtered.isEmpty
-                          ? null
-                          : () => _viewPdf(filtered),
+                    MarkdownTooltip(
+                      message: filtered.isEmpty
+                          ? '''
+
+**View PDF**
+
+Unavailable: no receipts match the current search and filters.
+
+'''
+                          : '''
+
+**View PDF**
+
+Preview the $matched matching receipt$plural as a PDF, which you can then
+print or save.
+
+''',
+                      child: IconButton(
+                        icon: const Icon(Icons.picture_as_pdf_outlined),
+                        onPressed: filtered.isEmpty
+                            ? null
+                            : () => _viewPdf(filtered),
+                      ),
                     ),
                   ],
                 ),

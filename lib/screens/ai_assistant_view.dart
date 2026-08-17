@@ -1,9 +1,36 @@
 /// AI assistant: natural-language receipt search + spending insights chat.
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:markdown_tooltip/markdown_tooltip.dart';
 
 import '../models/ai_model_config.dart';
 import '../models/receipt.dart';
@@ -182,17 +209,24 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                             setState(() => _tab = s.first),
                       ),
                     ),
-                    IconButton(
-                      onPressed: _openSettings,
-                      icon: const Icon(Icons.settings_outlined),
-                      tooltip: 'AI settings',
+                    MarkdownTooltip(
+                      message: '''
+
+**AI Settings**
+
+Choose the backend, download or remove on-device models, and manage your API
+key.
+
+''',
+                      child: IconButton(
+                        onPressed: _openSettings,
+                        icon: const Icon(Icons.settings_outlined),
+                      ),
                     ),
                   ],
                 ),
               ),
-              Expanded(
-                child: _tab == 0 ? _buildSearch() : _buildChat(),
-              ),
+              Expanded(child: _tab == 0 ? _buildSearch() : _buildChat()),
             ],
           ],
         );
@@ -239,8 +273,8 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                     child: Text(
                       'No matching receipts found for "$_lastQuery".',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
+                        color: scheme.onSurfaceVariant,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   )
@@ -249,21 +283,23 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 4),
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
                         child: Text(
                           'Found ${_searchResults!.length} '
                           '${_searchResults!.length == 1 ? 'receipt' : 'receipts'} '
                           'matching "$_lastQuery" · AI-powered',
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: scheme.onSurfaceVariant,
-                                  ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant),
                         ),
                       ),
                       Expanded(
                         child: ListView.builder(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           itemCount: _searchResults!.length,
                           itemBuilder: (_, i) {
                             final r = _searchResults![i];
@@ -307,10 +343,8 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                       'Ask anything about your spending.\n\n'
                       'e.g. "How much did I spend on groceries last month?"',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -318,7 +352,9 @@ class _AIAssistantViewState extends State<AIAssistantView> {
               : ListView.builder(
                   controller: _scrollCtrl,
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   itemCount: _messages.length,
                   itemBuilder: (_, i) => _ChatBubble(msg: _messages[i]),
                 ),
@@ -426,8 +462,10 @@ class _AISettingsSheetState extends State<_AISettingsSheet>
               children: [
                 Icon(Icons.auto_awesome_outlined, color: scheme.primary),
                 const SizedBox(width: 8),
-                Text('AI Settings',
-                    style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  'AI Settings',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
               ],
             ),
           ),
@@ -435,7 +473,10 @@ class _AISettingsSheetState extends State<_AISettingsSheet>
           TabBar(
             controller: _tabs,
             tabs: const [
-              Tab(icon: Icon(Icons.phone_android_outlined), text: 'Local Model'),
+              Tab(
+                icon: Icon(Icons.phone_android_outlined),
+                text: 'Local Model',
+              ),
               Tab(icon: Icon(Icons.cloud_outlined), text: 'Anthropic Claude'),
             ],
           ),
@@ -507,14 +548,17 @@ class _LocalModelTabState extends State<_LocalModelTab> {
       builder: (_) => AlertDialog(
         title: const Text('Delete model?'),
         content: Text(
-            'Remove "${config.name}" (${config.sizeMb} MB) from this device?'),
+          'Remove "${config.name}" (${config.sizeMb} MB) from this device?',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete')),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -532,9 +576,9 @@ class _LocalModelTabState extends State<_LocalModelTab> {
     if (url.isEmpty) return;
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.hasAbsolutePath) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid URL')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invalid URL')));
       return;
     }
     final filename = uri.pathSegments.lastWhere(
@@ -547,8 +591,9 @@ class _LocalModelTabState extends State<_LocalModelTab> {
       );
       return;
     }
-    final name =
-        _nameCtrl.text.trim().isEmpty ? filename : _nameCtrl.text.trim();
+    final name = _nameCtrl.text.trim().isEmpty
+        ? filename
+        : _nameCtrl.text.trim();
     final config = LocalModelConfig(
       id: filename,
       name: name,
@@ -581,22 +626,24 @@ class _LocalModelTabState extends State<_LocalModelTab> {
           controller: widget.scrollController,
           padding: const EdgeInsets.all(16),
           children: [
-            Text('Choose a model to run 100% on-device.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    )),
+            Text(
+              'Choose a model to run 100% on-device.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 12),
             ...models.map((m) {
               final isActive = isLocal && m.id == activeId;
               final isInstalled = _installed[m.id] ?? false;
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
-                color: isActive
-                    ? scheme.primaryContainer.withAlpha(120)
-                    : null,
+                color: isActive ? scheme.primaryContainer.withAlpha(120) : null,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   child: Row(
                     children: [
                       // ignore: deprecated_member_use
@@ -613,52 +660,59 @@ class _LocalModelTabState extends State<_LocalModelTab> {
                           children: [
                             Row(
                               children: [
-                                Text(m.name,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall),
+                                Text(
+                                  m.name,
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
                                 if (m.isCustom) ...[
                                   const SizedBox(width: 6),
                                   Chip(
                                     label: const Text('custom'),
                                     padding: EdgeInsets.zero,
-                                    labelStyle: Theme.of(context)
-                                        .textTheme
-                                        .labelSmall,
+                                    labelStyle: Theme.of(
+                                      context,
+                                    ).textTheme.labelSmall,
                                     visualDensity: VisualDensity.compact,
                                   ),
                                 ],
                               ],
                             ),
                             if (m.description.isNotEmpty)
-                              Text(m.description,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                          color: scheme.onSurfaceVariant)),
+                              Text(
+                                m.description,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: scheme.onSurfaceVariant),
+                              ),
                             if (m.sizeMb > 0)
-                              Text('~${m.sizeMb} MB',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                          color: scheme.onSurfaceVariant)),
+                              Text(
+                                '~${m.sizeMb} MB',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: scheme.onSurfaceVariant),
+                              ),
                           ],
                         ),
                       ),
                       if (isInstalled && !isActive)
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          tooltip: 'Remove from device',
-                          onPressed: () => _deleteModel(m),
+                        MarkdownTooltip(
+                          message: '''
+
+**Remove From Device**
+
+Delete this model's downloaded files to free up disk space. You can download
+it again later.
+
+''',
+                          child: IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => _deleteModel(m),
+                          ),
                         ),
                       if (!isInstalled)
-                        Text('Not downloaded',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                        Text(
+                          'Not downloaded',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
                     ],
                   ),
                 ),
@@ -679,15 +733,18 @@ class _LocalModelTabState extends State<_LocalModelTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('Add custom model',
-                          style: Theme.of(context).textTheme.titleSmall),
+                      Text(
+                        'Add custom model',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: _urlCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Model URL (.litertlm)',
                           hintText:
-                              'https://huggingface.co/…/model.litertlm',
+                              'https://huggingface.co/'
+                              '…/model.litertlm',
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
@@ -794,10 +851,9 @@ class _AnthropicTabState extends State<_AnthropicTab> {
         Text(
           'Use Claude via the Anthropic API. '
           'Your API key is stored securely on this device.',
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium
-              ?.copyWith(color: scheme.onSurfaceVariant),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
         ),
         const SizedBox(height: 16),
         TextField(
@@ -813,18 +869,31 @@ class _AnthropicTabState extends State<_AnthropicTab> {
               children: [
                 IconButton(
                   icon: Icon(
-                      _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                    _obscure
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
                   onPressed: () => setState(() => _obscure = !_obscure),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.copy_outlined),
-                  tooltip: 'Copy',
-                  onPressed: () {
-                    Clipboard.setData(
-                        ClipboardData(text: _keyCtrl.text.trim()));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Copied')));
-                  },
+                MarkdownTooltip(
+                  message: '''
+
+**Copy**
+
+Put the API key on the clipboard so you can paste it elsewhere.
+
+''',
+                  child: IconButton(
+                    icon: const Icon(Icons.copy_outlined),
+                    onPressed: () {
+                      Clipboard.setData(
+                        ClipboardData(text: _keyCtrl.text.trim()),
+                      );
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(const SnackBar(content: Text('Copied')));
+                    },
+                  ),
                 ),
               ],
             ),
@@ -839,10 +908,10 @@ class _AnthropicTabState extends State<_AnthropicTab> {
             border: OutlineInputBorder(),
           ),
           items: AIService.anthropicModels
-              .map((pair) => DropdownMenuItem(
-                    value: pair.$1,
-                    child: Text(pair.$2),
-                  ))
+              .map(
+                (pair) =>
+                    DropdownMenuItem(value: pair.$1, child: Text(pair.$2)),
+              )
               .toList(),
           onChanged: (v) => setState(() => _selectedModel = v!),
         ),
@@ -862,10 +931,9 @@ class _AnthropicTabState extends State<_AnthropicTab> {
         Text(
           'Requires an active Anthropic account. Receipts are sent to '
           'the Anthropic API to answer your questions.',
-          style: Theme.of(context)
-              .textTheme
-              .bodySmall
-              ?.copyWith(color: scheme.onSurfaceVariant),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
           textAlign: TextAlign.center,
         ),
       ],
@@ -893,26 +961,30 @@ class _OptInCard extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.auto_awesome_outlined,
-                    size: 48, color: scheme.primary),
+                Icon(
+                  Icons.auto_awesome_outlined,
+                  size: 48,
+                  color: scheme.primary,
+                ),
                 const SizedBox(height: 16),
-                Text('Enable AI Assistant',
-                    style: Theme.of(context).textTheme.titleLarge,
-                    textAlign: TextAlign.center),
+                Text(
+                  'Enable AI Assistant',
+                  style: Theme.of(context).textTheme.titleLarge,
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: 12),
                 Text(
                   'Natural language search and spending insights.\n\n'
                   'Run 100% on-device with a local model, or connect your '
                   'Anthropic API key to use Claude.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
+                    color: scheme.onSurfaceVariant,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
                 FilledButton.icon(
-                  onPressed: () =>
-                      AIService.instance.enableLocalBackend(),
+                  onPressed: () => AIService.instance.enableLocalBackend(),
                   icon: const Icon(Icons.phone_android_outlined),
                   label: const Text('Use local model (free, private)'),
                 ),
@@ -923,8 +995,9 @@ class _OptInCard extends StatelessWidget {
                     isScrollControlled: true,
                     useSafeArea: true,
                     shape: const RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(20)),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
                     ),
                     builder: (_) => const _AISettingsSheet(),
                   ),
@@ -963,15 +1036,17 @@ class _NeedsConfigCard extends StatelessWidget {
               children: [
                 Icon(Icons.key_outlined, size: 48, color: scheme.primary),
                 const SizedBox(height: 16),
-                Text('API Key Required',
-                    style: Theme.of(context).textTheme.titleLarge,
-                    textAlign: TextAlign.center),
+                Text(
+                  'API Key Required',
+                  style: Theme.of(context).textTheme.titleLarge,
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: 12),
                 Text(
                   'Enter your Anthropic API key to start using Claude.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
+                    color: scheme.onSurfaceVariant,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
@@ -1009,17 +1084,22 @@ class _LoadingCard extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.downloading_outlined,
-                    size: 48, color: scheme.primary),
+                Icon(
+                  Icons.downloading_outlined,
+                  size: 48,
+                  color: scheme.primary,
+                ),
                 const SizedBox(height: 16),
-                Text('Downloading AI model…',
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Downloading AI model…',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 4),
                 Text(
                   '${progress > 0 ? '$pct%' : 'Starting…'} · runs fully on-device',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 ClipRRect(
@@ -1074,15 +1154,17 @@ class _ErrorCardState extends State<_ErrorCard> {
               children: [
                 Icon(Icons.error_outline, size: 48, color: scheme.error),
                 const SizedBox(height: 16),
-                Text('Could not load AI model',
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Could not load AI model',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 8),
                 if (AIService.instance.error != null)
                   Text(
                     AIService.instance.error!,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
+                      color: scheme.onSurfaceVariant,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 const SizedBox(height: 16),
@@ -1130,8 +1212,11 @@ class _UnavailableCard extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.devices_other_outlined,
-                    size: 48, color: scheme.onSurfaceVariant),
+                Icon(
+                  Icons.devices_other_outlined,
+                  size: 48,
+                  color: scheme.onSurfaceVariant,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   'AI features not available on this platform',
@@ -1142,8 +1227,8 @@ class _UnavailableCard extends StatelessWidget {
                 Text(
                   'On-device AI requires Android, iOS, macOS, or Windows.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
+                    color: scheme.onSurfaceVariant,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -1180,9 +1265,7 @@ class _ChatBubble extends StatelessWidget {
           maxWidth: MediaQuery.of(context).size.width * 0.8,
         ),
         decoration: BoxDecoration(
-          color: isUser
-              ? scheme.primaryContainer
-              : scheme.surfaceContainerHigh,
+          color: isUser ? scheme.primaryContainer : scheme.surfaceContainerHigh,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
@@ -1202,10 +1285,8 @@ class _ChatBubble extends StatelessWidget {
             : Text(
                 msg.text,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: isUser
-                          ? scheme.onPrimaryContainer
-                          : scheme.onSurface,
-                    ),
+                  color: isUser ? scheme.onPrimaryContainer : scheme.onSurface,
+                ),
               ),
       ),
     );

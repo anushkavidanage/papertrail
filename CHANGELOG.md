@@ -35,8 +35,13 @@ then please show some ❤️ and tap on the star at
 This app is authored by [Anushka
 Vidanage](https://anushkavidanage.github.io/).
 
-## 1.2.0
+## 1.1
 
++ Copy and download a receipt's attachment [1.1.15 20260813 gjw]
++ Restore receipt attachments from a backup [1.1.14 20260809 gjw]
++ Show the app version in the top bar [1.1.13 20260809 gjw]
++ Prompt to save an edited receipt on close or BACK [1.1.12 20260809 gjw]
++ Add the Solid status bar to the bottom of the window [1.1.11 20260809 gjw]
 + Add category trends, vendor analytics, and sorting [1.1.10 20260807 av]
 + BACKUP -> EXPORT. Cache profile. [1.1.9 20260719 gjw]
 + Remember newly added categories [1.1.8 20260701 gjw]
@@ -49,7 +54,7 @@ Vidanage](https://anushkavidanage.github.io/).
 + Improve receipt loading efficiency [1.1.1 20260805 av]
 + Add AI capabilities [1.1.0 20260805 av]
 
-## 1.1.0 Basic Functionality
+## 1.0 Basic Functionality
 
 + Warranty expire notifications [1.0.13 20260618 av]
 + Show receipt total by category [1.0.12 20260617 av]
@@ -64,4 +69,7 @@ Vidanage](https://anushkavidanage.github.io/).
 + Add basic analytics of receipts [1.0.3 20260615 av]
 + Change app color theme [1.0.2 20260615 av]
 + Add app logo [1.0.1 20260612 av]
+
+## 1.0.0 Initial App
+
 + Initial app [1.0.0 20260611 av]

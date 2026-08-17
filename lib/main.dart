@@ -28,6 +28,9 @@ library;
 
 import 'package:flutter/material.dart';
 
+import 'package:solidui/solidui.dart';
+import 'package:window_manager/window_manager.dart';
+
 import 'app.dart';
 import 'services/ai_service.dart';
 import 'services/notification_service.dart';
@@ -36,5 +39,16 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService.instance.init();
   await AIService.instance.init();
+
+  // Route the title-bar close button through the solidui close guard rather
+  // than quitting immediately, so a receipt being edited with unsaved changes
+  // can be saved or discarded instead of being silently lost.
+  // AddEditReceiptScreen registers a resolver with the guard.
+
+  if (isDesktop) {
+    await windowManager.ensureInitialized();
+    await SolidWindowCloseGuard.enable();
+  }
+
   runApp(const PapertrailApp());
 }

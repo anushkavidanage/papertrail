@@ -1,4 +1,29 @@
 /// Manages AI backend lifecycle: on-device (flutter_gemma) and cloud (Anthropic).
+///
+/// Copyright (C) 2026, Anushka Vidanage
+///
+/// Licensed under the GNU General Public License, Version 3 (the "License");
+///
+/// License: https://opensource.org/license/gpl-3-0
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <https://opensource.org/license/gpl-3-0>.
+///
+/// Authors: Anushka Vidanage
+
+// Add the library directive as we have doc entries above. We publish the above
+// meta doc lines in the docs.
+
 library;
 
 import 'dart:async';
@@ -6,6 +31,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+
 import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:flutter_gemma_litertlm/flutter_gemma_litertlm.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -80,8 +106,10 @@ class AIService extends ChangeNotifier {
 
   /// Combined list: built-in models first, then user-added custom ones.
   List<LocalModelConfig> _customModels = [];
-  List<LocalModelConfig> get allLocalModels =>
-      [...kBuiltInLocalModels, ..._customModels];
+  List<LocalModelConfig> get allLocalModels => [
+    ...kBuiltInLocalModels,
+    ..._customModels,
+  ];
 
   InferenceModel? _model;
 
@@ -104,7 +132,8 @@ class AIService extends ChangeNotifier {
   }
 
   String get _windowsModelPath {
-    final base = Platform.environment['LOCALAPPDATA'] ??
+    final base =
+        Platform.environment['LOCALAPPDATA'] ??
         '${Platform.environment['USERPROFILE']}\\AppData\\Local';
     return '$base\\flutter_gemma\\$_activeModelId';
   }
@@ -120,9 +149,7 @@ class AIService extends ChangeNotifier {
     }
 
     try {
-      await FlutterGemma.initialize(
-        inferenceEngines: const [LiteRtLmEngine()],
-      );
+      await FlutterGemma.initialize(inferenceEngines: const [LiteRtLmEngine()]);
     } catch (_) {
       _status = AiStatus.unavailable;
       notifyListeners();
@@ -142,8 +169,7 @@ class AIService extends ChangeNotifier {
       (b) => b.name == backendStr,
       orElse: () => BackendType.local,
     );
-    _activeModelId =
-        prefs.getString(_activeModelKey) ?? _defaultLocalModelId;
+    _activeModelId = prefs.getString(_activeModelKey) ?? _defaultLocalModelId;
     _anthropicModel =
         prefs.getString(_anthropicModelKey) ?? _defaultAnthropicModel;
     _loadCustomModels(prefs);
@@ -262,7 +288,8 @@ class AIService extends ChangeNotifier {
     } catch (_) {}
     if (Platform.isWindows) {
       try {
-        final base = Platform.environment['LOCALAPPDATA'] ??
+        final base =
+            Platform.environment['LOCALAPPDATA'] ??
             '${Platform.environment['USERPROFILE']}\\AppData\\Local';
         await File('$base\\flutter_gemma\\$modelId').delete();
       } catch (_) {}
@@ -315,13 +342,10 @@ class AIService extends ChangeNotifier {
           await FlutterGemma.installModel(
             modelType: config.modelType,
             fileType: config.fileType,
-          )
-              .fromNetwork(config.url)
-              .withProgress((p) {
-                _downloadProgress = p / 100.0;
-                notifyListeners();
-              })
-              .install();
+          ).fromNetwork(config.url).withProgress((p) {
+            _downloadProgress = p / 100.0;
+            notifyListeners();
+          }).install();
         }
       }
       _model = await FlutterGemma.getActiveModel(maxTokens: 8192);
@@ -342,9 +366,7 @@ class AIService extends ChangeNotifier {
     await FlutterGemma.installModel(
       modelType: config.modelType,
       fileType: config.fileType,
-    )
-        .fromFile(path)
-        .install();
+    ).fromFile(path).install();
   }
 
   Future<void> _streamDownload(String url, String destPath) async {
@@ -376,7 +398,8 @@ class AIService extends ChangeNotifier {
     return allLocalModels.firstWhere(
       (m) => m.id == modelId,
       orElse: () => throw Exception(
-          'No config found for model "$modelId". Add it via addCustomModel().'),
+        'No config found for model "$modelId". Add it via addCustomModel().',
+      ),
     );
   }
 
@@ -385,26 +408,31 @@ class AIService extends ChangeNotifier {
   String _receiptContext(List<Receipt> receipts) {
     final sorted = [...receipts]
       ..sort((a, b) => b.purchaseDate.compareTo(a.purchaseDate));
-    return sorted.take(maxReceiptsForContext).map((r) {
-      final d = r.purchaseDate;
-      final date = _isoDate(d);
-      return jsonEncode({
-        'id': r.id,
-        'title': r.title,
-        'amount': r.amount,
-        'currency': r.currency,
-        'date': date,
-        if (r.vendor.isNotEmpty) 'vendor': r.vendor,
-        if (r.categories.isNotEmpty) 'categories': r.categories,
-        if (r.flags.isNotEmpty) 'flags': r.flags,
-      });
-    }).join('\n');
+    return sorted
+        .take(maxReceiptsForContext)
+        .map((r) {
+          final d = r.purchaseDate;
+          final date = _isoDate(d);
+          return jsonEncode({
+            'id': r.id,
+            'title': r.title,
+            'amount': r.amount,
+            'currency': r.currency,
+            'date': date,
+            if (r.vendor.isNotEmpty) 'vendor': r.vendor,
+            if (r.categories.isNotEmpty) 'categories': r.categories,
+            if (r.flags.isNotEmpty) 'flags': r.flags,
+          });
+        })
+        .join('\n');
   }
 
   // ── Public AI API ─────────────────────────────────────────────────────────
 
   Future<List<Receipt>> searchReceipts(
-      String query, List<Receipt> receipts) async {
+    String query,
+    List<Receipt> receipts,
+  ) async {
     if (_status != AiStatus.ready) return [];
     return switch (_backendType) {
       BackendType.local => _localSearch(query, receipts),
@@ -425,18 +453,22 @@ class AIService extends ChangeNotifier {
   // ── Local backend — search ────────────────────────────────────────────────
 
   Future<List<Receipt>> _localSearch(
-      String query, List<Receipt> receipts) async {
+    String query,
+    List<Receipt> receipts,
+  ) async {
     if (_model == null) return [];
     try {
       final today = _isoDate(DateTime.now());
-      final prompt = 'Today is $today.\n\n'
+      final prompt =
+          'Today is $today.\n\n'
           'RECEIPTS:\n${_receiptContext(receipts)}\n\n'
           'USER QUERY: $query\n\n'
           'Return the matching receipt IDs as a JSON array. /no_think\n\n'
           'Answer (JSON array only):';
 
       final chat = await _model!.openChat(
-        systemInstruction: 'You are a receipt search assistant. '
+        systemInstruction:
+            'You are a receipt search assistant. '
             'Given receipts and a user query, return ONLY a JSON array of '
             'matching receipt ID strings. If nothing matches, return []. '
             'Output JSON only.',
@@ -459,8 +491,7 @@ class AIService extends ChangeNotifier {
           final endIdx = prefix.indexOf('</think>');
           if (endIdx != -1) {
             streaming = true;
-            buf.write(
-                prefix.substring(endIdx + '</think>'.length).trimLeft());
+            buf.write(prefix.substring(endIdx + '</think>'.length).trimLeft());
             prefix = '';
           } else if (prefix.length >= 7 && !prefix.startsWith('<think>')) {
             streaming = true;
@@ -479,8 +510,7 @@ class AIService extends ChangeNotifier {
       final raw = _cleanModelOutput(buf.toString());
       final match = RegExp(r'\[[\s\S]*?\]').firstMatch(raw);
       if (match == null) return [];
-      final ids =
-          (jsonDecode(match.group(0)!) as List).cast<String>().toSet();
+      final ids = (jsonDecode(match.group(0)!) as List).cast<String>().toSet();
       return receipts.where((r) => ids.contains(r.id)).toList();
     } catch (_) {
       return [];
@@ -490,7 +520,9 @@ class AIService extends ChangeNotifier {
   // ── Local backend — insights (hybrid pipeline) ────────────────────────────
 
   Stream<String> _localChatInsights(
-      String query, List<Receipt> receipts) async* {
+    String query,
+    List<Receipt> receipts,
+  ) async* {
     if (_model == null) return;
     try {
       final now = DateTime.now();
@@ -509,7 +541,8 @@ class AIService extends ChangeNotifier {
       }
 
       final chat = await _model!.openChat(
-        systemInstruction: 'Today is $today. You are a personal spending '
+        systemInstruction:
+            'Today is $today. You are a personal spending '
             'assistant. Answer concisely and conversationally. '
             'Use exact currency codes.',
         temperature: 0.7,
@@ -520,9 +553,9 @@ class AIService extends ChangeNotifier {
 
       final prompt = filter != null && filter.hasFilters
           ? 'User asked: "$query"\n\n'
-              'Pre-computed data (do NOT recalculate these numbers):\n'
-              '$dataContext\n\n'
-              'Answer in 1-3 sentences. /no_think'
+                'Pre-computed data (do NOT recalculate these numbers):\n'
+                '$dataContext\n\n'
+                'Answer in 1-3 sentences. /no_think'
           : '$dataContext\n\nUser question: $query /no_think';
 
       await chat.addQuery(Message.text(text: prompt, isUser: true));
@@ -538,8 +571,9 @@ class AIService extends ChangeNotifier {
           final endIdx = prefix.indexOf('</think>');
           if (endIdx != -1) {
             streaming = true;
-            final after =
-                prefix.substring(endIdx + '</think>'.length).trimLeft();
+            final after = prefix
+                .substring(endIdx + '</think>'.length)
+                .trimLeft();
             prefix = '';
             if (after.isNotEmpty) yield after;
           } else if (prefix.length >= 7 && !prefix.startsWith('<think>')) {
@@ -662,8 +696,14 @@ class AIService extends ChangeNotifier {
         return false;
       }
       if (filter.dateTo != null) {
-        final end = DateTime(filter.dateTo!.year, filter.dateTo!.month,
-            filter.dateTo!.day, 23, 59, 59);
+        final end = DateTime(
+          filter.dateTo!.year,
+          filter.dateTo!.month,
+          filter.dateTo!.day,
+          23,
+          59,
+          59,
+        );
         if (r.purchaseDate.isAfter(end)) return false;
       }
       if (filter.categories.isEmpty && filter.keywords.isEmpty) return true;
@@ -689,11 +729,14 @@ class AIService extends ChangeNotifier {
     }
     final sb = StringBuffer();
     sb.writeln('Matched receipts: ${matched.length}');
-    sb.writeln('Total: ${totals.entries.map((e) => '${e.key} ${e.value.toStringAsFixed(2)}').join(', ')}');
+    sb.writeln(
+      'Total: ${totals.entries.map((e) => '${e.key} ${e.value.toStringAsFixed(2)}').join(', ')}',
+    );
     for (final r in matched.take(10)) {
       final vendor = r.vendor.isNotEmpty ? ' (${r.vendor})' : '';
       sb.writeln(
-          '  ${_isoDate(r.purchaseDate)}  ${r.currency} ${r.amount.toStringAsFixed(2)}  "${r.title}"$vendor');
+        '  ${_isoDate(r.purchaseDate)}  ${r.currency} ${r.amount.toStringAsFixed(2)}  "${r.title}"$vendor',
+      );
     }
     if (matched.length > 10) {
       sb.writeln('  … and ${matched.length - 10} more');
@@ -704,7 +747,9 @@ class AIService extends ChangeNotifier {
   // ── Anthropic backend — search ────────────────────────────────────────────
 
   Future<List<Receipt>> _anthropicSearch(
-      String query, List<Receipt> receipts) async {
+    String query,
+    List<Receipt> receipts,
+  ) async {
     try {
       final key = await _readApiKey();
       if (key.isEmpty) return [];
@@ -717,26 +762,27 @@ class AIService extends ChangeNotifier {
       final body = jsonEncode({
         'model': _anthropicModel,
         'max_tokens': 512,
-        'system': 'You are a receipt search assistant. Return ONLY a JSON '
+        'system':
+            'You are a receipt search assistant. Return ONLY a JSON '
             'array of matching receipt ID strings. If nothing matches, '
             'return []. Output JSON only.',
         'messages': [
-          {'role': 'user', 'content': userMsg}
+          {'role': 'user', 'content': userMsg},
         ],
       });
 
       final client = HttpClient();
       try {
-        final request = await client
-            .postUrl(Uri.parse('https://api.anthropic.com/v1/messages'));
+        final request = await client.postUrl(
+          Uri.parse('https://api.anthropic.com/v1/messages'),
+        );
         request.headers.set('x-api-key', key);
         request.headers.set('anthropic-version', '2023-06-01');
         request.headers.set('content-type', 'application/json');
         request.write(body);
         final response = await request.close();
 
-        final responseBody =
-            await response.transform(utf8.decoder).join();
+        final responseBody = await response.transform(utf8.decoder).join();
         final json = jsonDecode(responseBody) as Map<String, dynamic>;
 
         if (response.statusCode != 200) {
@@ -747,8 +793,9 @@ class AIService extends ChangeNotifier {
         final text = content['text'] as String? ?? '';
         final match = RegExp(r'\[[\s\S]*?\]').firstMatch(text);
         if (match == null) return [];
-        final ids =
-            (jsonDecode(match.group(0)!) as List).cast<String>().toSet();
+        final ids = (jsonDecode(match.group(0)!) as List)
+            .cast<String>()
+            .toSet();
         return receipts.where((r) => ids.contains(r.id)).toList();
       } finally {
         client.close();
@@ -761,7 +808,9 @@ class AIService extends ChangeNotifier {
   // ── Anthropic backend — insights ──────────────────────────────────────────
 
   Stream<String> _anthropicChatInsights(
-      String query, List<Receipt> receipts) async* {
+    String query,
+    List<Receipt> receipts,
+  ) async* {
     try {
       final key = await _readApiKey();
       if (key.isEmpty) return;
@@ -777,17 +826,19 @@ class AIService extends ChangeNotifier {
         'model': _anthropicModel,
         'max_tokens': 1024,
         'stream': true,
-        'system': 'Today is $today. You are a personal spending assistant. '
+        'system':
+            'Today is $today. You are a personal spending assistant. '
             'Answer concisely and conversationally. Use exact currency codes.',
         'messages': [
-          {'role': 'user', 'content': userMsg}
+          {'role': 'user', 'content': userMsg},
         ],
       });
 
       final client = HttpClient();
       try {
-        final request = await client
-            .postUrl(Uri.parse('https://api.anthropic.com/v1/messages'));
+        final request = await client.postUrl(
+          Uri.parse('https://api.anthropic.com/v1/messages'),
+        );
         request.headers.set('x-api-key', key);
         request.headers.set('anthropic-version', '2023-06-01');
         request.headers.set('content-type', 'application/json');
@@ -806,9 +857,10 @@ class AIService extends ChangeNotifier {
         }
 
         // Parse Server-Sent Events.
-        await for (final line in response
-            .transform(utf8.decoder)
-            .transform(const LineSplitter())) {
+        await for (final line
+            in response
+                .transform(utf8.decoder)
+                .transform(const LineSplitter())) {
           if (!line.startsWith('data: ')) continue;
           final data = line.substring(6);
           try {
