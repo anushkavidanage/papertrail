@@ -37,6 +37,7 @@ Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.2.0
 
++ Add category trends, vendor analytics, and sorting [1.1.10 20260807 av]
 + BACKUP -> EXPORT. Cache profile. [1.1.9 20260719 gjw]
 + Remember newly added categories [1.1.8 20260701 gjw]
 + Add PDF to BACKUP and SEARCH [1.1.7 20260628 gjw]

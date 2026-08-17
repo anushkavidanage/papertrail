@@ -128,9 +128,15 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                 const SizedBox(height: 24),
                 _CategoryDonut(receipts: receipts),
                 const SizedBox(height: 24),
+                _CategoryTrend(receipts: receipts, period: _period),
+                const SizedBox(height: 24),
                 _MonthlyBars(receipts: receipts, period: _period),
                 const SizedBox(height: 24),
-                _TopVendors(receipts: receipts),
+                _TopVendors(
+                  receipts: receipts,
+                  allReceipts: store.receipts,
+                  period: _period,
+                ),
                 const SizedBox(height: 24),
                 _UpcomingWarranties(
                   receipts: store.receipts,
@@ -405,7 +411,12 @@ class _MonthBucket {
   final double total;
 }
 
-List<_MonthBucket> _buildMonthBuckets(List<Receipt> receipts, _Period period) {
+/// The `[start, end)` calendar-month ranges covered by [period], oldest
+/// first. Shared by every chart that buckets receipts by month.
+List<(DateTime start, DateTime end)> _monthRanges(
+  List<Receipt> receipts,
+  _Period period,
+) {
   final now = DateTime.now();
   int count;
 
@@ -436,6 +447,13 @@ List<_MonthBucket> _buildMonthBuckets(List<Receipt> receipts, _Period period) {
     }
     final start = DateTime(y, m);
     final end = m == 12 ? DateTime(y + 1, 1) : DateTime(y, m + 1);
+    return (start, end);
+  });
+}
+
+List<_MonthBucket> _buildMonthBuckets(List<Receipt> receipts, _Period period) {
+  return _monthRanges(receipts, period).map((range) {
+    final (start, end) = range;
     final total = receipts
         .where(
           (r) =>
@@ -443,7 +461,7 @@ List<_MonthBucket> _buildMonthBuckets(List<Receipt> receipts, _Period period) {
         )
         .fold(0.0, (s, r) => s + r.amount);
     return _MonthBucket(start, total);
-  });
+  }).toList();
 }
 
 const List<String> _monthAbbr = [
@@ -584,40 +602,398 @@ class _MonthlyBars extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+// Category spending trend — stacked monthly bars by category
+// ---------------------------------------------------------------------------
+
+class _CategoryMonthBucket {
+  const _CategoryMonthBucket(this.month, this.totals);
+  final DateTime month;
+
+  /// Spend per entry in the trend's category labels list, same order.
+  final List<double> totals;
+}
+
+class _CategoryTrend extends StatefulWidget {
+  const _CategoryTrend({required this.receipts, required this.period});
+
+  final List<Receipt> receipts;
+  final _Period period;
+
+  @override
+  State<_CategoryTrend> createState() => _CategoryTrendState();
+}
+
+class _CategoryTrendState extends State<_CategoryTrend> {
+  /// Categories beyond this rank are folded into a single "Other" series so
+  /// the default (unfiltered) chart stays readable.
+  static const _maxSeries = 4;
+  static const _otherLabel = 'Other';
+
+  /// The categories the user has chosen to show, or null to use the default
+  /// top-[_maxSeries]-plus-"Other" view. Once set, this is the exact set of
+  /// series drawn — no "Other" bucket.
+  Set<String>? _selected;
+
+  Map<String, double> get _categoryTotals {
+    final totals = <String, double>{};
+    for (final r in widget.receipts) {
+      final cats = r.categories.isEmpty
+          ? const ['Uncategorised']
+          : r.categories;
+      for (final c in cats) {
+        totals[c] = (totals[c] ?? 0) + r.amount;
+      }
+    }
+    return totals;
+  }
+
+  /// Every category present in the current period, ranked by spend.
+  List<String> get _universe {
+    final ranked = _categoryTotals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return ranked.map((e) => e.key).toList();
+  }
+
+  List<String> _labelsFor(List<String> universe) {
+    final selected = _selected;
+    if (selected == null) {
+      if (universe.length <= _maxSeries) return universe;
+      return [...universe.take(_maxSeries), _otherLabel];
+    }
+    return universe.where(selected.contains).toList();
+  }
+
+  void _toggle(String category, List<String> universe) {
+    setState(() {
+      final next = Set<String>.from(_selected ?? universe.toSet());
+      if (!next.remove(category)) next.add(category);
+      _selected = next;
+    });
+  }
+
+  List<_CategoryMonthBucket> _buildBuckets(List<String> labels) {
+    final hasOther = _selected == null && labels.last == _otherLabel;
+    return _monthRanges(widget.receipts, widget.period).map((range) {
+      final (start, end) = range;
+      final totals = List<double>.filled(labels.length, 0.0);
+      for (final r in widget.receipts) {
+        if (r.purchaseDate.isBefore(start) || !r.purchaseDate.isBefore(end)) {
+          continue;
+        }
+        final cats = r.categories.isEmpty
+            ? const ['Uncategorised']
+            : r.categories;
+        for (final c in cats) {
+          final idx = labels.indexOf(c);
+          if (idx != -1) {
+            totals[idx] += r.amount;
+          } else if (hasOther) {
+            totals[labels.length - 1] += r.amount;
+          }
+        }
+      }
+      return _CategoryMonthBucket(start, totals);
+    }).toList();
+  }
+
+  Color _seriesColor(BuildContext context, List<String> labels, int index) {
+    if (labels[index] == _otherLabel) {
+      return Theme.of(context).colorScheme.outlineVariant;
+    }
+    return _color(index);
+  }
+
+  Widget _buildChips(List<String> universe) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (final category in universe)
+          FilterChip(
+            label: Text(category),
+            selected: _selected == null || _selected!.contains(category),
+            onSelected: (_) => _toggle(category, universe),
+            visualDensity: VisualDensity.compact,
+          ),
+        if (_selected != null)
+          TextButton(
+            onPressed: () => setState(() => _selected = null),
+            child: const Text('Reset'),
+          ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final universe = _universe;
+    if (universe.isEmpty) return const SizedBox.shrink();
+
+    final labels = _labelsFor(universe);
+    final subtitle = _selected == null
+        ? 'Monthly spend split by category'
+        : labels.isEmpty
+        ? 'No categories selected'
+        : '${labels.length} of ${universe.length} categories shown';
+
+    return _Section(
+      title: 'Category Trend',
+      subtitle: subtitle,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildChips(universe),
+          const SizedBox(height: 16),
+          if (labels.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text('Select at least one category to see its trend.'),
+              ),
+            )
+          else
+            _CategoryTrendChart(
+              receipts: widget.receipts,
+              labels: labels,
+              buckets: _buildBuckets(labels),
+              seriesColor: (i) => _seriesColor(context, labels, i),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryTrendChart extends StatelessWidget {
+  const _CategoryTrendChart({
+    required this.receipts,
+    required this.labels,
+    required this.buckets,
+    required this.seriesColor,
+  });
+
+  final List<Receipt> receipts;
+  final List<String> labels;
+  final List<_CategoryMonthBucket> buckets;
+  final Color Function(int index) seriesColor;
+
+  @override
+  Widget build(BuildContext context) {
+    if (buckets.isEmpty) return const SizedBox.shrink();
+
+    final maxVal = buckets
+        .map((b) => b.totals.fold(0.0, (a, b) => a + b))
+        .reduce(max);
+    final chartMax = maxVal <= 0 ? 100.0 : maxVal * 1.25;
+    final currency = _dominantCurrency(receipts);
+
+    final barWidth = buckets.length <= 3
+        ? 28.0
+        : buckets.length <= 6
+        ? 18.0
+        : 10.0;
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 200,
+          child: BarChart(
+            BarChartData(
+              maxY: chartMax,
+              barGroups: List.generate(buckets.length, (i) {
+                var cumulative = 0.0;
+                final stackItems = List.generate(labels.length, (j) {
+                  final from = cumulative;
+                  cumulative += buckets[i].totals[j];
+                  return BarChartRodStackItem(from, cumulative, seriesColor(j));
+                });
+                return BarChartGroupData(
+                  x: i,
+                  barRods: [
+                    BarChartRodData(
+                      toY: cumulative,
+                      rodStackItems: stackItems,
+                      width: barWidth,
+                    ),
+                  ],
+                );
+              }),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 46,
+                    getTitlesWidget: (value, meta) {
+                      if (value == 0 || value == meta.max) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: Text(
+                          _shortAmount(value),
+                          style: Theme.of(context).textTheme.labelSmall,
+                          textAlign: TextAlign.right,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 24,
+                    getTitlesWidget: (value, meta) {
+                      final idx = value.toInt();
+                      if (idx < 0 || idx >= buckets.length) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          _monthAbbr[buckets[idx].month.month],
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                getDrawingHorizontalLine: (_) => FlLine(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  strokeWidth: 1,
+                ),
+              ),
+              borderData: FlBorderData(show: false),
+              barTouchData: BarTouchData(
+                touchTooltipData: BarTouchTooltipData(
+                  getTooltipColor: (_) =>
+                      Theme.of(context).colorScheme.inverseSurface,
+                  getTooltipItem: (group, _, rod, unused) {
+                    final bucket = buckets[group.x];
+                    final lines = [
+                      '${_monthAbbr[bucket.month.month]} ${bucket.month.year}',
+                      for (var j = 0; j < labels.length; j++)
+                        if (bucket.totals[j] > 0)
+                          '${labels[j]}: ${formatMoney(bucket.totals[j], currency)}',
+                    ];
+                    return BarTooltipItem(
+                      lines.join('\n'),
+                      TextStyle(
+                        color: Theme.of(context).colorScheme.onInverseSurface,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: List.generate(labels.length, (i) {
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: seriesColor(i),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text(labels[i], style: Theme.of(context).textTheme.labelSmall),
+              ],
+            );
+          }),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Top vendors
 // ---------------------------------------------------------------------------
 
 class _TopVendors extends StatelessWidget {
-  const _TopVendors({required this.receipts});
+  const _TopVendors({
+    required this.receipts,
+    required this.allReceipts,
+    required this.period,
+  });
 
   final List<Receipt> receipts;
 
+  /// The full, unfiltered receipt history — used to tell whether a vendor's
+  /// first-ever purchase falls inside the selected period ("New").
+  final List<Receipt> allReceipts;
+  final _Period period;
+
+  bool _isNewVendor(String vendor, DateTime periodStart) {
+    final purchaseDates = allReceipts
+        .where((r) => r.vendor.trim() == vendor)
+        .map((r) => r.purchaseDate);
+    if (purchaseDates.isEmpty) return false;
+    final firstEver = purchaseDates.reduce((a, b) => a.isBefore(b) ? a : b);
+    return !firstEver.isBefore(periodStart);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final map = <String, double>{};
+    final totals = <String, double>{};
+    final visits = <String, int>{};
     for (final r in receipts) {
       final v = r.vendor.trim();
       if (v.isEmpty) continue;
-      map[v] = (map[v] ?? 0) + r.amount;
+      totals[v] = (totals[v] ?? 0) + r.amount;
+      visits[v] = (visits[v] ?? 0) + 1;
     }
-    if (map.isEmpty) return const SizedBox.shrink();
+    if (totals.isEmpty) return const SizedBox.shrink();
 
-    final sorted = map.entries.toList()
+    final sorted = totals.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final top = sorted.take(5).toList();
     final maxAmount = top.first.value;
     final currency = _dominantCurrency(receipts);
     final cs = Theme.of(context).colorScheme;
 
+    final periodStart = period == _Period.allTime
+        ? null
+        : DateTime.now().subtract(Duration(days: period.days));
+
     return _Section(
       title: 'Top Vendors',
-      subtitle: 'Up to 5 vendors by total spend',
+      subtitle: 'Up to 5 vendors by total spend, with visit frequency',
       child: Column(
         children: List.generate(top.length, (i) {
-          final frac = maxAmount > 0 ? top[i].value / maxAmount : 0.0;
+          final vendor = top[i].key;
+          final amount = top[i].value;
+          final visitCount = visits[vendor] ?? 1;
+          final avg = amount / visitCount;
+          final frac = maxAmount > 0 ? amount / maxAmount : 0.0;
+          final isNew =
+              periodStart != null && _isNewVendor(vendor, periodStart);
+
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
                   width: 20,
@@ -637,18 +1013,52 @@ class _TopVendors extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
-                            child: Text(
-                              top[i].key,
-                              style: Theme.of(context).textTheme.bodySmall,
-                              overflow: TextOverflow.ellipsis,
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    vendor,
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (isNew) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 1,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: cs.primaryContainer,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      'New',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: cs.onPrimaryContainer,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                           Text(
-                            formatMoney(top[i].value, currency),
+                            formatMoney(amount, currency),
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$visitCount visit${visitCount == 1 ? '' : 's'} · '
+                        'avg ${formatMoney(avg, currency)}',
+                        style: Theme.of(context).textTheme.labelSmall
+                            ?.copyWith(color: cs.onSurfaceVariant),
                       ),
                       const SizedBox(height: 4),
                       ClipRRect(
