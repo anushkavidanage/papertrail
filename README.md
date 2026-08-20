@@ -30,10 +30,10 @@ encrypted and saved on your Pod hosted on a
 [Solid server](https://github.com/CommunitySolidServer/). You maintain
 full control over your data, not the app developer or anyone else. So
 there is no Papertrail server. You can even host your Pod server and
-point the app to it and it will work. 
+point the app to it and it will work.
 
 This app is built as part of a suite of demonstrator apps developed by
-the research team at the
+the research team at the 
 [ANU Software Innovation Institute](https://sii.anu.edu.au) (SII). To
 access more apps like this using Solid Pod technology please go to the
 [Solid Community AU](https://solidcommunity.au/) website.
