@@ -8,7 +8,6 @@
 
 library;
 
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -183,15 +182,15 @@ Future<String?> saveReceiptsPdfAs(List<int> bytes, String defaultName) async {
       );
       return null;
     }
-    final savePath = await FilePicker.saveFile(
+    final saved = await FilePicker.saveFile(
       dialogTitle: 'Save PDF',
       fileName: defaultName,
       type: FileType.custom,
       allowedExtensions: ['pdf'],
+      bytes: Uint8List.fromList(bytes),
     );
-    if (savePath == null) return null; // Cancelled.
-    await File(savePath).writeAsBytes(bytes);
-    return 'Saved to $savePath';
+    if (saved == null) return null; // Cancelled.
+    return 'Saved to ${savedLocation(saved)}';
   } catch (e, st) {
     debugPrint('[Save PDF] error: $e\n$st');
     return 'error:Save failed: $e';

@@ -140,21 +140,15 @@ class BackupService {
     onProgress?.call(0, 1, 'Choosing save location…');
     final zipBytes = Uint8List.fromList(ZipEncoder().encode(archive));
     final filename = 'papertrail_backup_${_ts(DateTime.now())}.zip';
-    final savePath = await FilePicker.saveFile(
+    // saveFile writes the bytes itself on every platform.
+    final saved = await FilePicker.saveFile(
       dialogTitle: 'Save Backup',
       fileName: filename,
       type: FileType.custom,
       allowedExtensions: ['zip'],
       bytes: zipBytes,
     );
-    if (savePath == null) return false; // User cancelled.
-
-    // On desktop, saveFile returns a path but does not write the bytes,
-    // so write them ourselves. On mobile, bytes are written by the picker.
-    if (!Platform.isAndroid && !Platform.isIOS) {
-      await File(savePath).writeAsBytes(zipBytes);
-    }
-    return true;
+    return saved != null; // Null when the user cancelled.
   }
 
   // ── Import ─────────────────────────────────────────────────────────────
@@ -167,20 +161,21 @@ class BackupService {
 
     // ── 1. Pick the ZIP ───────────────────────────────────────────────
     onProgress?.call(0, 1, 'Choosing backup file…');
-    final picked = await FilePicker.pickFiles(
+    final picked = await FilePicker.pickFile(
       dialogTitle: 'Select Backup',
       type: FileType.custom,
       allowedExtensions: ['zip'],
-      withData: true,
     );
-    if (picked == null || picked.files.isEmpty) {
+    if (picked == null) {
       result.errors.add('No file selected.');
       return result;
     }
 
-    final fileBytes = picked.files.first.bytes;
-    if (fileBytes == null) {
-      result.errors.add('Could not read the selected file.');
+    final Uint8List fileBytes;
+    try {
+      fileBytes = await picked.readAsBytes();
+    } catch (e) {
+      result.errors.add('Could not read the selected file: $e');
       return result;
     }
 

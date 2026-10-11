@@ -34,6 +34,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/receipt.dart';
+import 'formatting.dart';
 
 const _headers = [
   'Date',
@@ -130,19 +131,14 @@ Future<String?> exportReceiptsToCsvFile(List<Receipt> receipts) async {
       '${_pad(now.hour)}${_pad(now.minute)}';
   final filename = 'papertrail_$stamp.csv';
 
-  final savePath = await FilePicker.saveFile(
+  // saveFile writes the bytes itself on every platform.
+  final saved = await FilePicker.saveFile(
     dialogTitle: 'Export CSV',
     fileName: filename,
     type: FileType.custom,
     allowedExtensions: ['csv'],
     bytes: bytes,
   );
-  if (savePath == null) return null; // User cancelled.
-
-  // On desktop, saveFile returns a path but does not write the bytes, so we
-  // write them ourselves. On mobile, the picker writes the bytes.
-  if (!Platform.isAndroid && !Platform.isIOS) {
-    await File(savePath).writeAsBytes(bytes);
-  }
-  return savePath;
+  if (saved == null) return null; // User cancelled.
+  return savedLocation(saved);
 }
