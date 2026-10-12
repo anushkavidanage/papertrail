@@ -62,6 +62,15 @@ String attachmentFileName(String title, String extension) {
   return '${stem.isEmpty ? 'receipt' : stem}.$extension';
 }
 
+/// A displayable location for a file saved through `FilePicker.saveFile`.
+///
+/// Desktop platforms return a `file:` URI, shown as a plain path. Mobile
+/// platforms may return a `content:` URI, which has no path, so it is shown
+/// as is.
+
+String savedLocation(Uri uri) =>
+    uri.scheme == 'file' ? uri.toFilePath() : uri.toString();
+
 /// Human friendly description of how far away [date] is from today.
 String relativeDay(DateTime date) {
   final today = DateTime.now();

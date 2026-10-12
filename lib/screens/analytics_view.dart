@@ -1018,7 +1018,9 @@ class _TopVendors extends StatelessWidget {
                                 Flexible(
                                   child: Text(
                                     vendor,
-                                    style: Theme.of(context).textTheme.bodySmall,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -1057,8 +1059,9 @@ class _TopVendors extends StatelessWidget {
                       Text(
                         '$visitCount visit${visitCount == 1 ? '' : 's'} · '
                         'avg ${formatMoney(avg, currency)}',
-                        style: Theme.of(context).textTheme.labelSmall
-                            ?.copyWith(color: cs.onSurfaceVariant),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       ClipRRect(
