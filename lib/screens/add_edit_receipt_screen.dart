@@ -818,7 +818,6 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen>
                             decoration: const InputDecoration(
                               labelText: 'Title *',
                               hintText: 'e.g. Coffee machine',
-                              border: OutlineInputBorder(),
                               suffixIcon: Icon(Icons.arrow_drop_down),
                             ),
                             validator: (v) => (v == null || v.trim().isEmpty)
@@ -867,7 +866,6 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen>
                           ),
                           decoration: const InputDecoration(
                             labelText: 'Amount *',
-                            border: OutlineInputBorder(),
                           ),
                           validator: (v) {
                             final parsed = double.tryParse(
@@ -885,7 +883,6 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen>
                           initialValue: _currency,
                           decoration: const InputDecoration(
                             labelText: 'Currency',
-                            border: OutlineInputBorder(),
                           ),
                           items: currencies
                               .map(
@@ -926,7 +923,6 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen>
                             decoration: const InputDecoration(
                               labelText: 'Store / vendor',
                               hintText: 'e.g. The Good Guys',
-                              border: OutlineInputBorder(),
                               suffixIcon: Icon(Icons.arrow_drop_down),
                             ),
                           );
@@ -966,7 +962,6 @@ class _AddEditReceiptScreenState extends State<AddEditReceiptScreen>
                     maxLines: 3,
                     decoration: const InputDecoration(
                       labelText: 'Description / notes',
-                      border: OutlineInputBorder(),
                       alignLabelWithHint: true,
                     ),
                   ),
@@ -1076,11 +1071,7 @@ class _DateTile extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(4),
       child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-          prefixIcon: Icon(icon),
-        ),
+        decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
         child: Text(value),
       ),
     );
@@ -1474,7 +1465,6 @@ when you save.
               decoration: const InputDecoration(
                 labelText: 'Description *',
                 hintText: 'e.g. Warranty card, Invoice, User manual',
-                border: OutlineInputBorder(),
               ),
               validator: (v) {
                 if (slot.hasFile && (v == null || v.trim().isEmpty)) {

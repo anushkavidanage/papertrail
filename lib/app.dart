@@ -32,6 +32,7 @@ import 'package:solidui/solidui.dart';
 
 import 'constants/app_config.dart';
 import 'screens/home_shell.dart';
+import 'theme/app_theme.dart';
 
 class PapertrailApp extends StatelessWidget {
   const PapertrailApp({super.key});
@@ -41,17 +42,8 @@ class PapertrailApp extends StatelessWidget {
     return SolidThemeApp(
       title: appTitle,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: seedColor),
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seedColor,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
       // SolidLogin handles the OIDC flow and only shows [child] once the user
       // is authenticated against their Pod.
       home: const SolidLogin(
@@ -64,7 +56,14 @@ class PapertrailApp extends StatelessWidget {
         redirectUris: redirectUris,
         postLogoutRedirectUris: postLogoutRedirectUris,
         autoLogin: true,
-        loginButtonStyle: LoginButtonStyle(background: lightOrage),
+        loginButtonStyle: LoginButtonStyle(
+          background: AppPalette.emberDeep,
+          foreground: Colors.white,
+        ),
+        registerButtonStyle: RegisterButtonStyle(
+          background: AppPalette.emberSoft,
+          foreground: AppPalette.onEmberSoft,
+        ),
         child: HomeShell(),
       ),
     );

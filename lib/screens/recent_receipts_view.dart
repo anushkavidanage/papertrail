@@ -30,6 +30,8 @@ import 'package:flutter/material.dart';
 
 import '../models/receipt.dart';
 import '../services/receipt_store.dart';
+import '../theme/app_theme.dart';
+import '../utils/formatting.dart';
 import '../widgets/locked_backdrop.dart';
 import '../widgets/receipt_card.dart';
 import 'receipt_detail_screen.dart';
@@ -68,18 +70,16 @@ class RecentReceiptsView extends StatelessWidget {
         return RefreshIndicator(
           onRefresh: () => _refresh(context),
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            // Bottom padding keeps the last card clear of the FAB.
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
             children: [
-              _OverviewHeader(
-                count: store.receipts.length,
-                total: store.totalAmount,
-              ),
-              const SizedBox(height: 20),
+              _OverviewHeader(receipts: store.receipts),
+              const SizedBox(height: 28),
               Row(
                 children: [
                   Text(
                     'Recent receipts',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const Spacer(),
                   if (store.status == StoreStatus.loading)
@@ -112,68 +112,138 @@ class RecentReceiptsView extends StatelessWidget {
 }
 
 class _OverviewHeader extends StatelessWidget {
-  const _OverviewHeader({required this.count, required this.total});
+  const _OverviewHeader({required this.receipts});
 
-  final int count;
-  final double total;
+  final List<Receipt> receipts;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      color: scheme.primaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Expanded(
-              child: _Stat(
-                label: 'Receipts',
-                value: '$count',
-                color: scheme.onPrimaryContainer,
-              ),
-            ),
-            Container(
-              width: 1,
-              height: 40,
-              color: scheme.onPrimaryContainer.withValues(alpha: 0.2),
-            ),
-            Expanded(
-              child: _Stat(
-                label: 'Tracked total',
-                value: total.toStringAsFixed(2),
-                color: scheme.onPrimaryContainer,
-              ),
-            ),
-          ],
+    final colors = PapertrailColors.of(context);
+    final text = Theme.of(context).textTheme;
+    final onHero = colors.onHero;
+
+    final total = receipts.fold(0.0, (sum, r) => sum + r.amount);
+    final now = DateTime.now();
+    final thisMonth = receipts
+        .where(
+          (r) =>
+              r.purchaseDate.year == now.year &&
+              r.purchaseDate.month == now.month,
+        )
+        .fold(0.0, (sum, r) => sum + r.amount);
+    final activeWarranties = receipts
+        .where((r) => r.hasWarranty && !r.isWarrantyExpired)
+        .length;
+
+    // Only label the totals with a currency when every receipt shares one;
+    // summing mixed currencies into one labelled figure would mislead.
+    final currencies = receipts.map((r) => r.currency).toSet();
+    String money(double v) => currencies.length == 1
+        ? formatMoney(v, currencies.single)
+        : v.toStringAsFixed(2);
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: colors.heroGradient,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: colors.heroGradient.last.withValues(alpha: 0.25),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.account_balance_wallet_outlined,
+                size: 18,
+                color: onHero,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Tracked total',
+                style: text.labelLarge?.copyWith(color: onHero),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              money(total),
+              style: text.displaySmall?.copyWith(
+                color: onHero,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _HeroPill(
+                icon: Icons.receipt_long_outlined,
+                label:
+                    '${receipts.length} '
+                    'receipt${receipts.length == 1 ? '' : 's'}',
+              ),
+              _HeroPill(
+                icon: Icons.calendar_today_outlined,
+                label: '${money(thisMonth)} this month',
+              ),
+              _HeroPill(
+                icon: Icons.verified_user_outlined,
+                label: '$activeWarranties under warranty',
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value, required this.color});
+/// A translucent stat pill on the hero card.
+class _HeroPill extends StatelessWidget {
+  const _HeroPill({required this.icon, required this.label});
 
+  final IconData icon;
   final String label;
-  final String value;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.bold,
-            color: color,
+    final onHero = PapertrailColors.of(context).onHero;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: onHero.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: onHero),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: onHero),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: TextStyle(color: color)),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -183,25 +253,33 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 48),
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
       child: Column(
         children: [
-          Icon(
-            Icons.receipt_long,
-            size: 72,
-            color: Theme.of(context).disabledColor,
+          Container(
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.receipt_long,
+              size: 40,
+              color: scheme.onPrimaryContainer,
+            ),
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'No receipts yet',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-          ),
+          const SizedBox(height: 20),
+          Text('No receipts yet', style: text.titleLarge),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Tap "Add receipt" to record your first purchase.\n'
             'Everything is stored privately in your own Solid Pod.',
             textAlign: TextAlign.center,
+            style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -223,10 +301,18 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.lock_outline,
-              size: 56,
-              color: Theme.of(context).colorScheme.error,
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.errorContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.lock_outline,
+                size: 36,
+                color: Theme.of(context).colorScheme.onErrorContainer,
+              ),
             ),
             const SizedBox(height: 16),
             Text(message, textAlign: TextAlign.center),
