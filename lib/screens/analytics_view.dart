@@ -34,27 +34,58 @@ import 'package:fl_chart/fl_chart.dart';
 
 import '../models/receipt.dart';
 import '../services/receipt_store.dart';
+import '../theme/app_theme.dart';
 import '../utils/formatting.dart';
 import '../widgets/locked_backdrop.dart';
 
 // ---------------------------------------------------------------------------
-// Palette — cycled across chart segments and bars.
+// Category colours — one fixed colour per category.
 // ---------------------------------------------------------------------------
 
-const List<Color> _palette = [
-  Color(0xFFEF6E37),
-  Color(0xFF4E92DF),
-  Color(0xFF4CAF50),
-  Color(0xFFAB47BC),
-  Color(0xFFFFCA28),
-  Color(0xFF26C6DA),
-  Color(0xFFEF5350),
-  Color(0xFF8D6E63),
-  Color(0xFF78909C),
-  Color(0xFFF06292),
-];
+/// Label for receipts with no category.
+const _uncategorised = 'Uncategorised';
 
-Color _color(int i) => _palette[i % _palette.length];
+/// Label for the folded series of categories without a colour slot. Not
+/// plain "Other", which is also one of the built-in categories.
+const _otherLabel = 'Other categories';
+
+/// The categories of [r], or [_uncategorised] when it has none.
+List<String> _categoriesOf(Receipt r) =>
+    r.categories.isEmpty ? const [_uncategorised] : r.categories;
+
+/// Assigns each category a fixed chart colour, so a category looks the same
+/// in every chart and keeps its colour when the period or a filter changes.
+///
+/// Slots go to categories by all-time spend, in the palette's fixed order.
+/// The palette has eight slots and is never cycled: categories past the
+/// eighth share the neutral [PapertrailColors.chartOther] and are folded
+/// into an "Other" series.
+class _CategoryColors {
+  _CategoryColors(List<Receipt> allReceipts, this._colors) {
+    final totals = <String, double>{};
+    for (final r in allReceipts) {
+      for (final c in _categoriesOf(r)) {
+        totals[c] = (totals[c] ?? 0) + r.amount;
+      }
+    }
+    final ranked = totals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    for (var i = 0; i < ranked.length && i < _colors.chart.length; i++) {
+      _slots[ranked[i].key] = i;
+    }
+  }
+
+  final PapertrailColors _colors;
+  final Map<String, int> _slots = {};
+
+  /// Whether [category] has its own colour, rather than folding into Other.
+  bool hasSlot(String category) => _slots.containsKey(category);
+
+  Color of(String category) {
+    final slot = category == _otherLabel ? null : _slots[category];
+    return slot == null ? _colors.chartOther : _colors.chart[slot];
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Period
@@ -102,6 +133,12 @@ class _AnalyticsViewState extends State<AnalyticsView> {
       builder: (context, _) {
         final store = ReceiptStore.instance;
         final receipts = _filter(store.receipts);
+        // Built from every receipt, not just this period, so switching
+        // period never repaints a category.
+        final categoryColors = _CategoryColors(
+          store.receipts,
+          PapertrailColors.of(context),
+        );
 
         return RefreshIndicator(
           onRefresh: _refresh,
@@ -116,28 +153,40 @@ class _AnalyticsViewState extends State<AnalyticsView> {
               if (receipts.isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 64),
-                  child: Center(
-                    child: Text(
-                      'No receipts in this period.',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.insights_outlined,
+                        size: 48,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No receipts in this period.',
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                    ],
                   ),
                 )
               else ...[
                 _SummaryRow(receipts: receipts),
-                const SizedBox(height: 24),
-                _CategoryDonut(receipts: receipts),
-                const SizedBox(height: 24),
-                _CategoryTrend(receipts: receipts, period: _period),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+                _CategoryDonut(receipts: receipts, colors: categoryColors),
+                const SizedBox(height: 16),
+                _CategoryTrend(
+                  receipts: receipts,
+                  period: _period,
+                  colors: categoryColors,
+                ),
+                const SizedBox(height: 16),
                 _MonthlyBars(receipts: receipts, period: _period),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 _TopVendors(
                   receipts: receipts,
                   allReceipts: store.receipts,
                   period: _period,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 _UpcomingWarranties(
                   receipts: store.receipts,
                 ), // always the full list
@@ -162,19 +211,17 @@ class _PeriodSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: _Period.values.map((p) {
-        return Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 3),
-            child: ChoiceChip(
-              label: Center(child: Text(p.label)),
-              selected: p == selected,
-              onSelected: (_) => onChanged(p),
-            ),
-          ),
-        );
-      }).toList(),
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<_Period>(
+        showSelectedIcon: false,
+        segments: [
+          for (final p in _Period.values)
+            ButtonSegment(value: p, label: Text(p.label)),
+        ],
+        selected: {selected},
+        onSelectionChanged: (s) => onChanged(s.single),
+      ),
     );
   }
 }
@@ -204,7 +251,7 @@ class _SummaryRow extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
-      childAspectRatio: 2.2,
+      childAspectRatio: 2.4,
       children: [
         _StatCard(
           icon: Icons.account_balance_wallet_outlined,
@@ -245,36 +292,49 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
     return Card(
-      color: cs.surfaceContainerHighest,
-      elevation: 0,
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
           children: [
-            Row(
-              children: [
-                Icon(icon, size: 14, color: cs.primary),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: cs.primaryContainer,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 18, color: cs.onPrimaryContainer),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
                     label,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    style: text.labelSmall?.copyWith(
                       color: cs.onSurfaceVariant,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
-            ),
-            Text(
-              value,
-              style: Theme.of(
-                context,
-              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-              overflow: TextOverflow.ellipsis,
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      style: text.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -288,9 +348,10 @@ class _StatCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _CategoryDonut extends StatefulWidget {
-  const _CategoryDonut({required this.receipts});
+  const _CategoryDonut({required this.receipts, required this.colors});
 
   final List<Receipt> receipts;
+  final _CategoryColors colors;
 
   @override
   State<_CategoryDonut> createState() => _CategoryDonutState();
@@ -299,19 +360,26 @@ class _CategoryDonut extends StatefulWidget {
 class _CategoryDonutState extends State<_CategoryDonut> {
   int? _touched;
 
+  /// Spend per category, largest first. Categories without a colour slot
+  /// are folded into a single trailing "Other" entry.
   Map<String, double> get _totals {
     final map = <String, double>{};
+    var other = 0.0;
     for (final r in widget.receipts) {
-      final cats = r.categories.isEmpty
-          ? const ['Uncategorised']
-          : r.categories;
-      for (final c in cats) {
-        map[c] = (map[c] ?? 0) + r.amount;
+      for (final c in _categoriesOf(r)) {
+        if (widget.colors.hasSlot(c)) {
+          map[c] = (map[c] ?? 0) + r.amount;
+        } else {
+          other += r.amount;
+        }
       }
     }
-    return Map.fromEntries(
-      map.entries.toList()..sort((a, b) => b.value.compareTo(a.value)),
-    );
+    return {
+      ...Map.fromEntries(
+        map.entries.toList()..sort((a, b) => b.value.compareTo(a.value)),
+      ),
+      if (other > 0) _otherLabel: other,
+    };
   }
 
   @override
@@ -322,22 +390,43 @@ class _CategoryDonutState extends State<_CategoryDonut> {
     final grandTotal = totals.values.fold(0.0, (a, b) => a + b);
     final keys = totals.keys.toList();
     final currency = _dominantCurrency(widget.receipts);
+    final text = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    String pctOf(String key) => grandTotal > 0
+        ? '${(totals[key]! / grandTotal * 100).toStringAsFixed(1)}%'
+        : '0%';
 
     final sections = List.generate(keys.length, (i) {
-      final isTouched = _touched == i;
-      final pct = grandTotal > 0 ? totals[keys[i]]! / grandTotal * 100 : 0.0;
       return PieChartSectionData(
         value: totals[keys[i]]!,
-        color: _color(i),
-        radius: isTouched ? 72.0 : 62.0,
-        title: isTouched ? '${pct.toStringAsFixed(1)}%' : '',
-        titleStyle: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
+        color: widget.colors.of(keys[i]),
+        radius: _touched == i ? 34.0 : 28.0,
+        showTitle: false,
       );
     });
+
+    // The centre names what is highlighted, in text tokens rather than the
+    // series colour, falling back to the period total.
+    final touchedKey = _touched == null ? null : keys[_touched!];
+    final centre = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          touchedKey ?? 'Total',
+          style: text.labelMedium?.copyWith(color: cs.onSurfaceVariant),
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          touchedKey == null
+              ? formatMoney(grandTotal, currency)
+              : pctOf(touchedKey),
+          style: text.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ],
+    );
 
     return _Section(
       title: 'Spending by Category',
@@ -346,34 +435,43 @@ class _CategoryDonutState extends State<_CategoryDonut> {
         children: [
           SizedBox(
             height: 220,
-            child: PieChart(
-              PieChartData(
-                sections: sections,
-                centerSpaceRadius: 50,
-                sectionsSpace: 2,
-                pieTouchData: PieTouchData(
-                  touchCallback: (event, response) {
-                    setState(() {
-                      if (!event.isInterestedForInteractions ||
-                          response?.touchedSection == null) {
-                        _touched = null;
-                      } else {
-                        _touched =
-                            response!.touchedSection!.touchedSectionIndex;
-                      }
-                    });
-                  },
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                PieChart(
+                  PieChartData(
+                    sections: sections,
+                    centerSpaceRadius: 72,
+                    sectionsSpace: 2,
+                    pieTouchData: PieTouchData(
+                      touchCallback: (event, response) {
+                        setState(() {
+                          if (!event.isInterestedForInteractions ||
+                              response?.touchedSection == null) {
+                            _touched = null;
+                          } else {
+                            final i =
+                                response!.touchedSection!.touchedSectionIndex;
+                            _touched = i < 0 ? null : i;
+                          }
+                        });
+                      },
+                    ),
+                  ),
                 ),
-              ),
+                SizedBox(width: 120, child: centre),
+              ],
             ),
           ),
           const SizedBox(height: 16),
+          // Legend with values: identity is never colour alone, and the
+          // amounts relieve the sub-3:1 light-mode slots.
           Wrap(
-            spacing: 12,
+            spacing: 14,
             runSpacing: 8,
             children: List.generate(keys.length, (i) {
               return Opacity(
-                opacity: (_touched == null || _touched == i) ? 1.0 : 0.35,
+                opacity: (_touched == null || _touched == i) ? 1.0 : 0.4,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -381,14 +479,18 @@ class _CategoryDonutState extends State<_CategoryDonut> {
                       width: 10,
                       height: 10,
                       decoration: BoxDecoration(
-                        color: _color(i),
-                        shape: BoxShape.circle,
+                        color: widget.colors.of(keys[i]),
+                        borderRadius: BorderRadius.circular(3),
                       ),
                     ),
-                    const SizedBox(width: 5),
+                    const SizedBox(width: 6),
+                    Text(keys[i], style: text.labelMedium),
+                    const SizedBox(width: 6),
                     Text(
-                      '${keys[i]}  ${formatMoney(totals[keys[i]]!, currency)}',
-                      style: Theme.of(context).textTheme.labelSmall,
+                      formatMoney(totals[keys[i]]!, currency),
+                      style: text.labelMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -518,7 +620,8 @@ class _MonthlyBars extends StatelessWidget {
                 barRods: [
                   BarChartRodData(
                     toY: buckets[i].total,
-                    color: cs.primary,
+                    // One series: slot 1, named by the section title.
+                    color: PapertrailColors.of(context).chart.first,
                     width: barWidth,
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(4),
@@ -577,7 +680,7 @@ class _MonthlyBars extends StatelessWidget {
               show: true,
               drawVerticalLine: false,
               getDrawingHorizontalLine: (_) =>
-                  FlLine(color: cs.outlineVariant, strokeWidth: 1),
+                  FlLine(color: _gridColor(context), strokeWidth: 1),
             ),
             borderData: FlBorderData(show: false),
             barTouchData: BarTouchData(
@@ -614,51 +717,58 @@ class _CategoryMonthBucket {
 }
 
 class _CategoryTrend extends StatefulWidget {
-  const _CategoryTrend({required this.receipts, required this.period});
+  const _CategoryTrend({
+    required this.receipts,
+    required this.period,
+    required this.colors,
+  });
 
   final List<Receipt> receipts;
   final _Period period;
+  final _CategoryColors colors;
 
   @override
   State<_CategoryTrend> createState() => _CategoryTrendState();
 }
 
 class _CategoryTrendState extends State<_CategoryTrend> {
-  /// Categories beyond this rank are folded into a single "Other" series so
+  /// Categories beyond this rank are folded into the "Other" series so
   /// the default (unfiltered) chart stays readable.
   static const _maxSeries = 4;
-  static const _otherLabel = 'Other';
 
-  /// The categories the user has chosen to show, or null to use the default
+  /// The series the user has chosen to show, or null to use the default
   /// top-[_maxSeries]-plus-"Other" view. Once set, this is the exact set of
-  /// series drawn — no "Other" bucket.
+  /// series drawn; "Other" then holds only categories without a colour.
   Set<String>? _selected;
 
   Map<String, double> get _categoryTotals {
     final totals = <String, double>{};
     for (final r in widget.receipts) {
-      final cats = r.categories.isEmpty
-          ? const ['Uncategorised']
-          : r.categories;
-      for (final c in cats) {
+      for (final c in _categoriesOf(r)) {
         totals[c] = (totals[c] ?? 0) + r.amount;
       }
     }
     return totals;
   }
 
-  /// Every category present in the current period, ranked by spend.
+  /// Every coloured category present in the current period, ranked by
+  /// spend, then "Other" when any category without a colour is present.
   List<String> get _universe {
     final ranked = _categoryTotals.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    return ranked.map((e) => e.key).toList();
+    final names = ranked.map((e) => e.key);
+    return [
+      ...names.where(widget.colors.hasSlot),
+      if (names.any((c) => !widget.colors.hasSlot(c))) _otherLabel,
+    ];
   }
 
   List<String> _labelsFor(List<String> universe) {
     final selected = _selected;
     if (selected == null) {
-      if (universe.length <= _maxSeries) return universe;
-      return [...universe.take(_maxSeries), _otherLabel];
+      final named = universe.where((c) => c != _otherLabel).toList();
+      if (named.length <= _maxSeries) return universe;
+      return [...named.take(_maxSeries), _otherLabel];
     }
     return universe.where(selected.contains).toList();
   }
@@ -672,7 +782,7 @@ class _CategoryTrendState extends State<_CategoryTrend> {
   }
 
   List<_CategoryMonthBucket> _buildBuckets(List<String> labels) {
-    final hasOther = _selected == null && labels.last == _otherLabel;
+    final otherIdx = labels.indexOf(_otherLabel);
     return _monthRanges(widget.receipts, widget.period).map((range) {
       final (start, end) = range;
       final totals = List<double>.filled(labels.length, 0.0);
@@ -680,27 +790,20 @@ class _CategoryTrendState extends State<_CategoryTrend> {
         if (r.purchaseDate.isBefore(start) || !r.purchaseDate.isBefore(end)) {
           continue;
         }
-        final cats = r.categories.isEmpty
-            ? const ['Uncategorised']
-            : r.categories;
-        for (final c in cats) {
+        for (final c in _categoriesOf(r)) {
           final idx = labels.indexOf(c);
           if (idx != -1) {
             totals[idx] += r.amount;
-          } else if (hasOther) {
-            totals[labels.length - 1] += r.amount;
+          } else if (otherIdx != -1 &&
+              (_selected == null || !widget.colors.hasSlot(c))) {
+            // The default view folds everything not drawn into Other; a
+            // custom selection keeps Other to the uncoloured categories.
+            totals[otherIdx] += r.amount;
           }
         }
       }
       return _CategoryMonthBucket(start, totals);
     }).toList();
-  }
-
-  Color _seriesColor(BuildContext context, List<String> labels, int index) {
-    if (labels[index] == _otherLabel) {
-      return Theme.of(context).colorScheme.outlineVariant;
-    }
-    return _color(index);
   }
 
   Widget _buildChips(List<String> universe) {
@@ -757,7 +860,7 @@ class _CategoryTrendState extends State<_CategoryTrend> {
               receipts: widget.receipts,
               labels: labels,
               buckets: _buildBuckets(labels),
-              seriesColor: (i) => _seriesColor(context, labels, i),
+              seriesColor: (i) => widget.colors.of(labels[i]),
             ),
         ],
       ),
@@ -806,7 +909,17 @@ class _CategoryTrendChart extends StatelessWidget {
                 final stackItems = List.generate(labels.length, (j) {
                   final from = cumulative;
                   cumulative += buckets[i].totals[j];
-                  return BarChartRodStackItem(from, cumulative, seriesColor(j));
+                  // A 1px card-coloured edge on each segment leaves a 2px
+                  // gap between neighbours, so adjacent fills never merge.
+                  return BarChartRodStackItem(
+                    from,
+                    cumulative,
+                    seriesColor(j),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).cardTheme.color!,
+                      width: 1,
+                    ),
+                  );
                 });
                 return BarChartGroupData(
                   x: i,
@@ -815,6 +928,9 @@ class _CategoryTrendChart extends StatelessWidget {
                       toY: cumulative,
                       rodStackItems: stackItems,
                       width: barWidth,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(4),
+                      ),
                     ),
                   ],
                 );
@@ -868,10 +984,8 @@ class _CategoryTrendChart extends StatelessWidget {
               gridData: FlGridData(
                 show: true,
                 drawVerticalLine: false,
-                getDrawingHorizontalLine: (_) => FlLine(
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                  strokeWidth: 1,
-                ),
+                getDrawingHorizontalLine: (_) =>
+                    FlLine(color: _gridColor(context), strokeWidth: 1),
               ),
               borderData: FlBorderData(show: false),
               barTouchData: BarTouchData(
@@ -1065,12 +1179,14 @@ class _TopVendors extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius: BorderRadius.circular(3),
+                        // One series: every vendor wears slot 1; the bar's
+                        // length already carries the amount.
                         child: LinearProgressIndicator(
                           value: frac,
-                          backgroundColor: cs.surfaceContainerHighest,
-                          color: _color(i),
-                          minHeight: 4,
+                          backgroundColor: cs.surfaceContainerHigh,
+                          color: PapertrailColors.of(context).chart.first,
+                          minHeight: 6,
                         ),
                       ),
                     ],
@@ -1158,18 +1274,15 @@ class _Section extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // Shape, colour and hairline come from the app's card theme.
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: cs.outlineVariant),
-      ),
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 2),
             Text(
               subtitle,
@@ -1201,6 +1314,10 @@ String _dominantCurrency(List<Receipt> receipts) {
 }
 
 /// Compact axis label: 1200 → "1.2k", 15000 → "15k", 500 → "500".
+/// Recessive gridlines: present for reading values, quieter than any mark.
+Color _gridColor(BuildContext context) =>
+    Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5);
+
 String _shortAmount(double v) {
   if (v >= 10000) return '${(v / 1000).toStringAsFixed(0)}k';
   if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}k';

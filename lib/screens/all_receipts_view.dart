@@ -445,7 +445,6 @@ store. The icon is highlighted while a non-default order is active.
               ],
               decoration: InputDecoration(
                 labelText: 'Min amount',
-                border: const OutlineInputBorder(),
                 isDense: true,
                 // contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 suffixIcon: _minAmount != null
@@ -477,7 +476,6 @@ store. The icon is highlighted while a non-default order is active.
               ],
               decoration: InputDecoration(
                 labelText: 'Max amount',
-                border: const OutlineInputBorder(),
                 isDense: true,
                 // contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 suffixIcon: _maxAmount != null
@@ -544,7 +542,6 @@ store. The icon is highlighted while a non-default order is active.
           child: InputDecorator(
             decoration: InputDecoration(
               labelText: label,
-              border: const OutlineInputBorder(),
               isDense: true,
               // contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               suffixIcon: hasValue
@@ -623,7 +620,6 @@ store. The icon is highlighted while a non-default order is active.
                         decoration: InputDecoration(
                           hintText: 'Search receipts',
                           prefixIcon: const Icon(Icons.search),
-                          border: const OutlineInputBorder(),
                           isDense: true,
                           suffixIcon: _query.isEmpty
                               ? null

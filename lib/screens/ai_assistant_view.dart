@@ -250,7 +250,6 @@ key.
                   decoration: const InputDecoration(
                     hintText: 'e.g. "electronics over \$200 last quarter"',
                     prefixIcon: Icon(Icons.auto_awesome_outlined),
-                    border: OutlineInputBorder(),
                     isDense: true,
                   ),
                   onSubmitted: (_) => _runSearch(),
@@ -375,7 +374,6 @@ key.
                   controller: _chatCtrl,
                   decoration: const InputDecoration(
                     hintText: 'Ask about your spending…',
-                    border: OutlineInputBorder(),
                     isDense: true,
                   ),
                   onSubmitted: (_) => _sendMessage(),
@@ -745,7 +743,6 @@ it again later.
                           hintText:
                               'https://huggingface.co/'
                               '…/model.litertlm',
-                          border: OutlineInputBorder(),
                           isDense: true,
                         ),
                         keyboardType: TextInputType.url,
@@ -755,7 +752,6 @@ it again later.
                         controller: _nameCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Display name (optional)',
-                          border: OutlineInputBorder(),
                           isDense: true,
                         ),
                       ),
@@ -862,7 +858,6 @@ class _AnthropicTabState extends State<_AnthropicTab> {
           decoration: InputDecoration(
             labelText: 'Anthropic API key',
             hintText: 'sk-ant-…',
-            border: const OutlineInputBorder(),
             prefixIcon: const Icon(Icons.key_outlined),
             suffixIcon: Row(
               mainAxisSize: MainAxisSize.min,
@@ -903,10 +898,7 @@ Put the API key on the clipboard so you can paste it elsewhere.
         DropdownButtonFormField<String>(
           // ignore: deprecated_member_use
           value: _selectedModel,
-          decoration: const InputDecoration(
-            labelText: 'Model',
-            border: OutlineInputBorder(),
-          ),
+          decoration: const InputDecoration(labelText: 'Model'),
           items: AIService.anthropicModels
               .map(
                 (pair) =>

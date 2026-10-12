@@ -138,12 +138,6 @@ const List<String> attachmentExtensions = [...imageExtensions, 'pdf'];
 /// Maximum size of a receipt attachment (photo or PDF), in bytes.
 const int maxAttachmentBytes = 1024 * 1024; // 1 MB
 
-/// Brand seed colour used to derive the light/dark theme.
-/// Matches the primary orange from the Papertrail logo (#ef6e37).
-const Color seedColor = Color(0xFFEF6E37);
-
-const Color lightOrage = Color(0xFFf99e77);
-
 /// Cover photo shown on the Solid login screen.
 const AssetImage loginCoverImage = AssetImage('assets/images/app_image.jpg');
 

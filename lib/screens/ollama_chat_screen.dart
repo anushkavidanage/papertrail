@@ -404,7 +404,6 @@ with.
                   controller: _inputCtrl,
                   decoration: const InputDecoration(
                     hintText: 'Ask about your receipts…',
-                    border: OutlineInputBorder(),
                     isDense: true,
                   ),
                   onSubmitted: (_) => _send(),
@@ -713,7 +712,6 @@ class _SettingsDialogState extends State<_SettingsDialog> {
             decoration: const InputDecoration(
               labelText: 'Base URL',
               hintText: 'http://localhost:11434',
-              border: OutlineInputBorder(),
               isDense: true,
             ),
             keyboardType: TextInputType.url,
@@ -724,7 +722,6 @@ class _SettingsDialogState extends State<_SettingsDialog> {
             decoration: const InputDecoration(
               labelText: 'Model',
               hintText: 'qwen3:latest',
-              border: OutlineInputBorder(),
               isDense: true,
             ),
           ),
