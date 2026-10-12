@@ -36,6 +36,7 @@ import '../models/receipt.dart';
 import '../services/receipt_store.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatting.dart';
+import '../utils/month_ranges.dart';
 import '../widgets/locked_backdrop.dart';
 
 // ---------------------------------------------------------------------------
@@ -101,7 +102,16 @@ enum _Period {
   const _Period(this.label, this.days);
   final String label;
   final int days;
+
+  /// When the period begins: a rolling window of [days] back from now, or
+  /// null for all time. The one source of truth for the filter, the monthly
+  /// charts and top vendors, so they always cover the same receipts.
+  DateTime? get start =>
+      this == allTime ? null : DateTime.now().subtract(Duration(days: days));
 }
+
+/// Most bars a monthly chart draws for "All", so it stays readable.
+const _maxMonthBars = 24;
 
 // ---------------------------------------------------------------------------
 // Root view
@@ -121,8 +131,8 @@ class _AnalyticsViewState extends State<AnalyticsView> {
       ReceiptStore.instance.refresh(context, const LockedBackdrop());
 
   List<Receipt> _filter(List<Receipt> all) {
-    if (_period == _Period.allTime) return all;
-    final cutoff = DateTime.now().subtract(Duration(days: _period.days));
+    final cutoff = _period.start;
+    if (cutoff == null) return all;
     return all.where((r) => r.purchaseDate.isAfter(cutoff)).toList();
   }
 
@@ -513,44 +523,54 @@ class _MonthBucket {
   final double total;
 }
 
+/// Where the monthly charts begin: the period's start, or the oldest
+/// receipt for all time. Null when there is nothing to chart.
+DateTime? _chartFrom(List<Receipt> receipts, _Period period) {
+  final start = period.start;
+  if (start != null) return start;
+  if (receipts.isEmpty) return null;
+  return receipts
+      .map((r) => r.purchaseDate)
+      .reduce((a, b) => a.isBefore(b) ? a : b);
+}
+
 /// The `[start, end)` calendar-month ranges covered by [period], oldest
 /// first. Shared by every chart that buckets receipts by month.
+///
+/// They run from the month containing the period's start, so every receipt
+/// the period filter keeps lands in a bar and the bars add up to the
+/// period's total. Only "All" can be capped, at [_maxMonthBars].
 List<(DateTime start, DateTime end)> _monthRanges(
   List<Receipt> receipts,
   _Period period,
 ) {
-  final now = DateTime.now();
-  int count;
+  final from = _chartFrom(receipts, period);
+  if (from == null) return [];
+  return monthRanges(from: from, now: DateTime.now(), maxMonths: _maxMonthBars);
+}
 
-  if (period == _Period.allTime) {
-    if (receipts.isEmpty) return [];
-    final oldest = receipts
-        .map((r) => r.purchaseDate)
-        .reduce((a, b) => a.isBefore(b) ? a : b);
-    count = (now.year - oldest.year) * 12 + (now.month - oldest.month) + 1;
-    count = count.clamp(1, 24); // cap so the chart stays readable
-  } else {
-    count = switch (period) {
-      _Period.month => 2,
-      _Period.threeMonths => 3,
-      _Period.sixMonths => 6,
-      _Period.year => 12,
-      _Period.allTime => 1, // unreachable
-    };
+/// A subtitle suffix saying when the monthly charts drop older months.
+String _monthCapNote(List<Receipt> receipts, _Period period) {
+  final from = _chartFrom(receipts, period);
+  final capped =
+      from != null &&
+      monthRangesTruncated(
+        from: from,
+        now: DateTime.now(),
+        maxMonths: _maxMonthBars,
+      );
+  return capped ? ' · last $_maxMonthBars months' : '';
+}
+
+/// The tooltip heading for the bar starting at [month]. The first bar can
+/// be a partial month, so it says where the period starts within it.
+String _bucketLabel(DateTime month, _Period period) {
+  final start = period.start;
+  final name = '${_monthAbbr[month.month]} ${month.year}';
+  if (start != null && start.isAfter(month)) {
+    return '$name (from ${start.day} ${_monthAbbr[start.month]})';
   }
-
-  return List.generate(count, (i) {
-    final offset = count - 1 - i;
-    int y = now.year;
-    int m = now.month - offset;
-    while (m <= 0) {
-      m += 12;
-      y--;
-    }
-    final start = DateTime(y, m);
-    final end = m == 12 ? DateTime(y + 1, 1) : DateTime(y, m + 1);
-    return (start, end);
-  });
+  return name;
 }
 
 List<_MonthBucket> _buildMonthBuckets(List<Receipt> receipts, _Period period) {
@@ -607,7 +627,8 @@ class _MonthlyBars extends StatelessWidget {
 
     return _Section(
       title: 'Monthly Trend',
-      subtitle: 'Total spend per calendar month',
+      subtitle:
+          'Total spend per calendar month${_monthCapNote(receipts, period)}',
       child: SizedBox(
         height: 200,
         child: BarChart(
@@ -687,7 +708,7 @@ class _MonthlyBars extends StatelessWidget {
               touchTooltipData: BarTouchTooltipData(
                 getTooltipColor: (_) => cs.inverseSurface,
                 getTooltipItem: (group, _, rod, unused) => BarTooltipItem(
-                  '${_monthAbbr[buckets[group.x].month.month]}\n'
+                  '${_bucketLabel(buckets[group.x].month, period)}\n'
                   '${formatMoney(rod.toY, currency)}',
                   TextStyle(
                     color: cs.onInverseSurface,
@@ -836,6 +857,7 @@ class _CategoryTrendState extends State<_CategoryTrend> {
     final labels = _labelsFor(universe);
     final subtitle = _selected == null
         ? 'Monthly spend split by category'
+              '${_monthCapNote(widget.receipts, widget.period)}'
         : labels.isEmpty
         ? 'No categories selected'
         : '${labels.length} of ${universe.length} categories shown';
@@ -860,6 +882,7 @@ class _CategoryTrendState extends State<_CategoryTrend> {
               receipts: widget.receipts,
               labels: labels,
               buckets: _buildBuckets(labels),
+              period: widget.period,
               seriesColor: (i) => widget.colors.of(labels[i]),
             ),
         ],
@@ -873,12 +896,14 @@ class _CategoryTrendChart extends StatelessWidget {
     required this.receipts,
     required this.labels,
     required this.buckets,
+    required this.period,
     required this.seriesColor,
   });
 
   final List<Receipt> receipts;
   final List<String> labels;
   final List<_CategoryMonthBucket> buckets;
+  final _Period period;
   final Color Function(int index) seriesColor;
 
   @override
@@ -995,7 +1020,7 @@ class _CategoryTrendChart extends StatelessWidget {
                   getTooltipItem: (group, _, rod, unused) {
                     final bucket = buckets[group.x];
                     final lines = [
-                      '${_monthAbbr[bucket.month.month]} ${bucket.month.year}',
+                      _bucketLabel(bucket.month, period),
                       for (var j = 0; j < labels.length; j++)
                         if (bucket.totals[j] > 0)
                           '${labels[j]}: ${formatMoney(bucket.totals[j], currency)}',
@@ -1087,9 +1112,7 @@ class _TopVendors extends StatelessWidget {
     final currency = _dominantCurrency(receipts);
     final cs = Theme.of(context).colorScheme;
 
-    final periodStart = period == _Period.allTime
-        ? null
-        : DateTime.now().subtract(Duration(days: period.days));
+    final periodStart = period.start;
 
     return _Section(
       title: 'Top Vendors',
