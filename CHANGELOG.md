@@ -37,6 +37,10 @@ Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.1
 
++ Bug fix: Monthly receipt summary calculations [1.1.19 20261015 av]
++ Migrate to latest solid packages [1.1.18 20261012 av]
++ Refine UI to make it more userfriendly [1.1.17 20261012 av]
++ New app logo icon [1.1.16 20260922 av]
 + Copy and download a receipt's attachment [1.1.15 20260813 gjw]
 + Restore receipt attachments from a backup [1.1.14 20260809 gjw]
 + Show the app version in the top bar [1.1.13 20260809 gjw]
