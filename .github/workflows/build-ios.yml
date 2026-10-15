@@ -1,9 +1,16 @@
 name: Build Installers (iOS)
 
-# Builds the signed iOS .ipa (development export). Moved unchanged from
-# installers.yaml. It is an artefact only, not attached to releases: a
-# development-signed .ipa installs only on devices registered to the Apple
-# Developer account.
+# Builds the iOS app two ways:
+#
+# - Unsigned .ipa (package-ios-ipa-unsigned). Needs no Apple secrets. On a
+#   release it is attached as papertrail-ios-unsigned.ipa. It can't be
+#   installed as it is: a tool that re-signs it with your own Apple ID
+#   (AltStore, Sideloadly) can sideload it; with a free Apple ID the app
+#   expires after 7 days.
+#
+# - Signed .ipa, development export (package-ios-ipa). Moved unchanged from
+#   installers.yaml. An artefact only, not attached to releases: it installs
+#   only on devices registered to the Apple Developer account.
 #
 # Two ways to trigger it, which coexist:
 #
@@ -20,10 +27,12 @@ name: Build Installers (iOS)
 #
 # Or run it by hand from the Actions tab.
 #
-# Keywords: "bump version x", "build installers x", "build ios".
+# Keywords: "bump version x" and "build installers x" build both. "build ios"
+# (or "publish" on a tag, or a manual run) builds the unsigned .ipa;
+# "build ios signed" builds both.
 #
-# 20260715 Needs ios/GithubActionsExportOptions.plist, which this repository
-# does not have yet, so it fails until that is added.
+# 20260715 The signed build needs ios/GithubActionsExportOptions.plist, which
+# this repository does not have yet, so it fails until that is added.
 
 on:
   workflow_dispatch:
@@ -54,6 +63,7 @@ jobs:
       || contains(github.event.head_commit.message, 'build ')
     runs-on: ubuntu-latest
     outputs:
+      unsigned: ${{ steps.check.outputs.unsigned }}
       ipa: ${{ steps.check.outputs.ipa }}
     steps:
       - uses: actions/checkout@v6
@@ -83,10 +93,97 @@ jobs:
           manual() { [ "${{ github.event_name }}" = "workflow_dispatch" ]; }
           out() { if "$@"; then echo true; else echo false; fi; }
           {
-            echo "ipa=$(out eval 'manual || bump "bump version x" || kw "build installers x" || kw "build ios"')"
+            echo "unsigned=$(out eval 'manual || pub || bump "bump version x" || kw "build installers x" || kw "build ios"')"
+            echo "ipa=$(out eval 'bump "bump version x" || kw "build installers x" || kw "build ios signed"')"
           } | tee -a "$GITHUB_OUTPUT"
 
-  # IOS
+  # IOS - UNSIGNED
+  #
+  # Proves the app builds for iOS and gives testers something to sideload,
+  # without an Apple Developer certificate. Modelled on Norra's build-ios.yml.
+
+  package-ios-ipa-unsigned:
+    needs: gate
+    if: needs.gate.outputs.unsigned == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+
+      - name: Clone Repository
+        uses: actions/checkout@v6
+
+      # The newest stable Xcode on the runner image: flutter_gemma's Swift
+      # package needs Swift 6.1 (Xcode 16.3 or later), and new Flutter
+      # releases often need a newer Xcode than the image's default.
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Confirm Flutter Version
+        run: |
+          flutter --version
+          xcodebuild -version
+
+      - name: Install Flutter Project Dependencies
+        run: flutter pub get
+
+      - name: Build iOS app (unsigned)
+        run: flutter build ios --release --no-codesign
+
+      # An .ipa is a zip with the app under Payload/.
+      - name: Package .ipa
+        run: |
+          set -euo pipefail
+          app="build/ios/iphoneos/Runner.app"
+          if [ ! -d "$app" ]; then
+            ls -la build/ios/iphoneos || true
+            echo "Expected $app" >&2
+            exit 1
+          fi
+          stage=$(mktemp -d)
+          mkdir -p "$stage/Payload"
+          cp -R "$app" "$stage/Payload/"
+          mkdir -p dist
+          out="$PWD/dist/${APP}-ios-unsigned.ipa"
+          # -y keeps the symlinks inside embedded frameworks, which the app
+          # needs to launch once re-signed.
+          (cd "$stage" && zip -qr -y "$out" Payload)
+          ls -lh dist
+
+      - name: Upload Artefact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.APP }}-ios-unsigned-ipa
+          path: dist/${{ env.APP }}-ios-unsigned.ipa
+          # An .ipa is already compressed.
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Published, not a draft, so every build workflow adds to the same
+          # release; a second create fails because the first won, hence the
+          # final view.
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
+            || gh release view "$TAG" >/dev/null
+          gh release upload "$TAG" "dist/${APP}-ios-unsigned.ipa" --clobber
+
+  # IOS - SIGNED (development export)
 
   package-ios-ipa:
     needs: gate
