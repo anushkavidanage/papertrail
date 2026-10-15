@@ -1,0 +1,246 @@
+name: Build Installers (iOS)
+
+# Builds the signed iOS .ipa (development export). Moved unchanged from
+# installers.yaml. It is an artefact only, not attached to releases: a
+# development-signed .ipa installs only on devices registered to the Apple
+# Developer account.
+#
+# Two ways to trigger it, which coexist:
+#
+# 1. A push to dev, build or installers whose commit message has one of the
+#    keywords listed per job below. Artefact names are unchanged from the
+#    original installers.yaml and the workflow name still starts with "Build
+#    Installers", so `make ginstall` (installers/update.sh) keeps uploading
+#    them to solidcommunity.au.
+#
+# 2. A version tag (v*) whose commit or tag message contains "publish" or a
+#    job's own keyword. Public builds are then also attached to that tag's
+#    GitHub Release. "bump version" is ignored on tags, so tagging the bump
+#    commit does not rebuild what the branch push already built.
+#
+# Or run it by hand from the Actions tab.
+#
+# Keywords: "bump version x", "build installers x", "build ios".
+#
+# 20260715 Needs ios/GithubActionsExportOptions.plist, which this repository
+# does not have yet, so it fails until that is added.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev, build, installers]
+    tags: ['v*']
+
+permissions:
+  contents: write # required to create and add to a release on a tag
+
+env:
+  APP: papertrail
+  # Keep in step with FLUTTER_VERSION in ci.yaml and the other build-*.
+  FLUTTER_VERSION: "3.47.0"
+
+jobs:
+
+  # Decides which jobs run. The job-level if keeps it from even starting a
+  # runner on an ordinary push. On a tag the message comes from git and the
+  # REST API rather than head_commit, which is empty when an already-pushed
+  # commit is tagged later. Matching is case-insensitive, as GitHub's
+  # contains() was in the original installers.yaml.
+  gate:
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.ref, 'refs/tags/v')
+      || contains(github.event.head_commit.message, 'bump version')
+      || contains(github.event.head_commit.message, 'build ')
+    runs-on: ubuntu-latest
+    outputs:
+      ipa: ${{ steps.check.outputs.ipa }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          msg=$(git log -1 --format=%B)
+          is_tag=false
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            is_tag=true
+            # The shallow checkout flattens an annotated tag; the REST API
+            # still has its message.
+            tag_sha=$(gh api "repos/${{ github.repository }}/git/refs/tags/${{ github.ref_name }}" --jq 'select(.object.type == "tag") | .object.sha')
+            if [ -n "$tag_sha" ]; then
+              msg="$msg"$'\n'$(gh api "repos/${{ github.repository }}/git/tags/$tag_sha" --jq '.message')
+            fi
+          fi
+          echo "Message: $msg"
+          kw() { grep -qiF -- "$1" <<<"$msg"; }
+          # "bump version" counts on branch pushes only, so tagging the bump
+          # commit does not rebuild; "publish" counts on tags only.
+          bump() { [ "$is_tag" = false ] && kw "$1"; }
+          pub() { [ "$is_tag" = true ] && kw "publish"; }
+          manual() { [ "${{ github.event_name }}" = "workflow_dispatch" ]; }
+          out() { if "$@"; then echo true; else echo false; fi; }
+          {
+            echo "ipa=$(out eval 'manual || bump "bump version x" || kw "build installers x" || kw "build ios"')"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  # IOS
+
+  package-ios-ipa:
+    needs: gate
+    if: needs.gate.outputs.ipa == 'true'
+    runs-on: macos-latest
+    env:
+      IOS_APP_RELEASE_PATH: build/ios/ipa
+      IOS_ARCHIVE_RELEASE_PATH: build/ios/archive
+
+    steps:
+      - name: Clone Repository
+        uses: actions/checkout@v6
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          flutter-version: ${{env.FLUTTER_VERSION}}
+
+      - name: Confirm Flutter Version
+        run: flutter --version
+
+      - name: Install Flutter Project Dependencies
+        run: flutter pub get
+
+      - name: Enable iOS
+        run: flutter config --enable-ios
+
+      # Install certificate and IOS provisioning profile for app signing
+
+      # iOS entitlements are different to the macOS entitlements
+      # so uses a provisioning profile for iOS.
+      # The provisioning profile links the signing certificate, Apple
+      # developer account and entitlements for the app build.
+
+      - name: Install Apple certificate and IOS provisioning profile
+        env:
+          IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
+          IOS_CERTIFICATE_PWD: ${{ secrets.IOS_CERTIFICATE_PWD }}
+          IOS_PROVISION_PROFILE: ${{ secrets.IOS_PROVISION_PROFILE }}
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PWD }}
+        run: |
+          echo "Create variables for filepaths for certificate, provisioning profile, and keychain"
+          # These vars must be assigned at run time
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          echo "Import certificate and provisioning profile from secrets"
+          echo -n "$IOS_CERTIFICATE" | base64 --decode -o $CERTIFICATE_PATH
+          echo -n "$IOS_PROVISION_PROFILE" | base64 --decode -o $PP_PATH
+
+          echo "Create temporary keychain"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          echo "Import certificate to keychain"
+          security import $CERTIFICATE_PATH -P "$IOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+
+          echo "Add apple and apple-tool to partition list for key to allow build codesign to access keychain"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # TODO: make this the save path for the decoded profile
+          echo "Save provisioning profile to location expected by Xcode build"
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+
+      - name: Display temporary keychain
+        run: |
+
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: List installed provisioning profiles
+        run: ls -lh ~/Library/MobileDevice/Provisioning\ Profiles
+
+      # Build and sign the app
+
+      - name: Build Flutter iOS app archive
+        # By default `ipa` produces a release mode .ipa archived version of
+        # .app bundle, with settings tailored for Apple App Store
+        # distribution. Use --export-method
+        # By default, app is codesigned, unless --no-codesign is used.
+        # run: flutter build ipa
+        # Option for manual signing
+        # Use --verbose to debug build and signing issues
+        run: flutter build ipa --export-options-plist=ios/GithubActionsExportOptions.plist
+
+      - name: Note the xcarchive created
+        run: |
+          ls -lh ${{ env.IOS_ARCHIVE_RELEASE_PATH }}
+
+      - name: Note the IPA created
+        run: |
+          ls -lh ${{ env.IOS_APP_RELEASE_PATH }}
+
+      - name: Extract IPA
+        run: |
+          mkdir "${{ env.IOS_APP_RELEASE_PATH }}/extracted_ipa"
+          unzip "${{ env.IOS_APP_RELEASE_PATH }}/${{ env.APP }}.ipa" -d "${{ env.IOS_APP_RELEASE_PATH }}/extracted_ipa"
+
+      - name: Check .app bundle extracted from IPA
+        # Check app bundle was extracted
+        id: check_app
+        run: |
+          # APP_PATH=$(find "${{ env.IOS_APP_RELEASE_PATH }}/extracted_ipa/Payload" -d -name "*.app" -print -quit)
+          # echo "extracted .app path: $APP_PATH"
+          if test -d "${{ env.IOS_APP_RELEASE_PATH }}/extracted_ipa/Payload/Runner.app"; then
+            echo "IPA extracted to extracted_ipa/Payload/Runner.app."
+            echo "APP_EXTRACTED=true" >> $GITHUB_OUTPUT
+          else
+            echo ".app bundle not extracted from IPA."
+            echo "APP_EXTRACTED=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check IPA code signature
+        # Ensure an app bundle was extracted
+        if: steps.check_app.outputs.APP_EXTRACTED == 'true'
+        run: |
+          codesign --display --verbose=2 "${{ env.IOS_APP_RELEASE_PATH }}/extracted_ipa/Payload/Runner.app"
+
+      - name: Upload Artefact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.APP }}-ipa
+          path: ${{ env.IOS_APP_RELEASE_PATH }}/${{ env.APP }}.ipa
+
+      # # Important! Cleanup: remove the certificate and provisioning profile from the runner!
+      # - name: Clean up keychain and provisioning profile
+      #   if: ${{ always() }}
+      #   run: |
+      #     security delete-keychain $KEYCHAIN_PATH
+      #     rm ~/Library/MobileDevice/Provisioning\ Profiles/build_pp.mobileprovision
+
+      # 20251018 jesscmoore:
+      # If ipa not distributed through the app store or enterprise MDM
+      # users will asked to trust developer in iOS settings during
+      # the install:
+      # https://help.apple.com/xcode/mac/current/#/dev96a12fb84
+
+      # 20251020 jesscmoore:
+      # Using a "development" certificate and associated
+      # provisioning profile
+      # and "debugging" export method
+      # may limit installation to only devices
+      # registered in the Apple Developer Program
+      # account.
+      # Use a "distribution" certificate and associated
+      # provisioning profile and "ad-hoc" export method for
+      # testing on devices that don't need to be registered
+      # on Apple Develop Program account.
+      # The distribution certificate and associated
+      # provisioning profile can be used with app-store export
+      # method.
+
+  ########################################################################

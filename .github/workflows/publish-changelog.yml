@@ -1,0 +1,76 @@
+name: Publish Changelog
+
+# On a version tag (v*) whose commit or tag message contains "changelog" or
+# "publish", sets that tag's GitHub Release notes to the newest section of
+# CHANGELOG.md (from its first "## " heading to the next). Creates the release
+# if no build workflow has yet; they all share it, see build-linux.yaml.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # required to create and edit the release
+
+jobs:
+
+  # `github.event.head_commit` is empty when an already-pushed commit is
+  # tagged later, so the message is read back out of git (and, for an
+  # annotated tag, the REST API) instead.
+  gate:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    outputs:
+      proceed: ${{ steps.check.outputs.proceed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          msg=$(git log -1 --format=%B)
+          tag_sha=$(gh api "repos/${{ github.repository }}/git/refs/tags/${{ github.ref_name }}" --jq 'select(.object.type == "tag") | .object.sha')
+          if [ -n "$tag_sha" ]; then
+            msg="$msg"$'\n'$(gh api "repos/${{ github.repository }}/git/tags/$tag_sha" --jq '.message')
+          fi
+          echo "Message: $msg"
+          if grep -qiF 'changelog' <<<"$msg" || grep -qiF 'publish' <<<"$msg"; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish-changelog:
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Extract the newest changelog section
+        run: |
+          set -euo pipefail
+          awk '/^## /{n++} n==1' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "No '## ' section found in CHANGELOG.md" >&2
+            exit 1
+          fi
+          cat notes.md
+
+      - name: Set the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --verify-tag --title "Papertrail ${TAG#v}" --notes "" \
+            || gh release view "$TAG" >/dev/null
+          gh release edit "$TAG" --notes-file notes.md
+          echo "Release notes for $TAG set from CHANGELOG.md"

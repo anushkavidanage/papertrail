@@ -1,0 +1,48 @@
+name: Clean up caches
+
+# The Linux and Android builds cache the Flutter SDK, pub packages and Gradle
+# downloads. GitHub evicts a cache only after 7 days unread, or oldest-first
+# past 10 GB, and a cache written by a PR run or a tag run is readable only by
+# that same ref, so those are dead weight once it is done.
+#
+# Runs when a PR closes (deletes that PR's caches), or by hand (Actions ->
+# Clean up caches -> Run workflow) to delete every cache, e.g. after a
+# release. The next builds simply start cold.
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+
+permissions:
+  actions: write # required to delete caches
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # No checkout in this job, so tell gh which repository to use.
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Delete this PR's caches
+        if: github.event_name == 'pull_request'
+        run: |
+          ref="refs/pull/${{ github.event.pull_request.number }}/merge"
+          ids=$(gh cache list --ref "$ref" --limit 100 --json id --jq '.[].id')
+          if [ -z "$ids" ]; then
+            echo "No caches for $ref."
+            exit 0
+          fi
+          for id in $ids; do
+            echo "Deleting cache $id"
+            gh cache delete "$id"
+          done
+
+      - name: Delete all caches
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          gh cache list --limit 100
+          gh cache delete --all

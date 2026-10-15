@@ -1,0 +1,226 @@
+name: Build Installers (Android)
+
+# Builds the Android APK (universal, as `make apk` does) and App Bundle (as
+# `make appbundle` does).
+#
+# Two ways to trigger it, which coexist:
+#
+# 1. A push to dev, build or installers whose commit message contains
+#    "bump version", "build installers" or "build android". The artefacts are
+#    papertrail-android-apk and papertrail-android-aab. installers/update.sh
+#    does not fetch them: Android is still uploaded to solidcommunity.au from
+#    the local `make apk` / `make appbundle` build.
+#
+# 2. A version tag (v*) whose commit or tag message contains "publish" or
+#    "build android". The APK is then also attached to that tag's GitHub
+#    Release, versioned and as papertrail.apk, so
+#      https://github.com/anushkavidanage/papertrail/releases/latest/download/papertrail.apk
+#    always points at the newest one. The App Bundle stays an artefact: it is
+#    for Google Play, not for installing directly.
+#
+# Or run it by hand from the Actions tab.
+#
+# Signing: set the repository secrets KEYSTORE_BASE64 (the upload keystore,
+# base64-encoded), KEYSTORE_PASSWORD, KEY_PASSWORD and KEY_ALIAS. They are
+# written to android/key.properties, which android/app/build.gradle.kts reads.
+# Without them the build is signed with the debug key, exactly as the local
+# `make apk` is today - fine for testing, but it can't be installed over a
+# properly signed build, or published to Google Play.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev, build, installers]
+    tags: ['v*']
+
+permissions:
+  contents: write # required to create and add to a release on a tag
+
+env:
+  APP: papertrail
+  # Keep in step with FLUTTER_VERSION in ci.yaml and the other build-*.
+  FLUTTER_VERSION: "3.47.0"
+  JAVA_VERSION: "17"
+
+jobs:
+
+  # Same rules as the other build-* workflows; see build-linux.yaml.
+  gate:
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.ref, 'refs/tags/v')
+      || contains(github.event.head_commit.message, 'bump version')
+      || contains(github.event.head_commit.message, 'build ')
+    runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.check.outputs.android }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          msg=$(git log -1 --format=%B)
+          is_tag=false
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            is_tag=true
+            # The shallow checkout flattens an annotated tag; the REST API
+            # still has its message.
+            tag_sha=$(gh api "repos/${{ github.repository }}/git/refs/tags/${{ github.ref_name }}" --jq 'select(.object.type == "tag") | .object.sha')
+            if [ -n "$tag_sha" ]; then
+              msg="$msg"$'\n'$(gh api "repos/${{ github.repository }}/git/tags/$tag_sha" --jq '.message')
+            fi
+          fi
+          echo "Message: $msg"
+          kw() { grep -qiF -- "$1" <<<"$msg"; }
+          # "bump version" counts on branch pushes only; "publish" on tags only.
+          bump() { [ "$is_tag" = false ] && kw "bump version"; }
+          pub() { [ "$is_tag" = true ] && kw "publish"; }
+          manual() { [ "${{ github.event_name }}" = "workflow_dispatch" ]; }
+          out() { if "$@"; then echo true; else echo false; fi; }
+          {
+            echo "android=$(out eval 'manual || bump || pub || kw "build installers" || kw "build android"')"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  package-android:
+    needs: gate
+    if: needs.gate.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    # Exposed as env so the signing steps can test for their presence:
+    # steps cannot read the secrets context in `if:` conditions directly.
+    env:
+      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+
+    steps:
+
+      - name: Clone Repository
+        uses: actions/checkout@v6
+
+      # Before the toolchain setup so nothing it installs is removed. The
+      # Android SDK is left alone; the native libraries (flutter_gemma's
+      # LiteRT-LM engine among them) make this build large.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup \
+                      /usr/share/swift /usr/local/share/powershell \
+                      /opt/hostedtoolcache/CodeQL || true
+          df -h /
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      # `basic` is the open-source provider built on actions/cache.
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+          add-job-summary: on-failure
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Confirm Flutter Version
+        run: flutter --version
+
+      - name: Install Flutter Project Dependencies
+        run: flutter pub get
+
+      # Gradle's defaults assume a developer machine; on a 4-core runner the
+      # daemons together can exhaust RAM, which shows up as the job being
+      # killed (exit 143) rather than as a build error. Later keys in a
+      # .properties file win, so this overrides what is committed.
+      - name: Constrain Gradle memory
+        run: |
+          cat >> android/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g
+          org.gradle.daemon=false
+          org.gradle.parallel=false
+          org.gradle.workers.max=2
+          kotlin.daemon.jvmargs=-Xmx2g
+          kotlin.compiler.execution.strategy=in-process
+          EOF
+
+      - name: Get Version from pubspec.yaml
+        run: |
+          VERSION=$(yq eval '.version' pubspec.yaml | sed 's/+.*//')
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      # ---- Signing (optional) --------------------------------------------
+      - name: Restore keystore
+        if: env.KEYSTORE_BASE64 != ''
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: Warn about debug signing
+        if: env.KEYSTORE_BASE64 == ''
+        run: echo "::warning::KEYSTORE_BASE64 is not set -- building with debug signing."
+      # ---------------------------------------------------------------------
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Build App Bundle
+        run: flutter build appbundle --release
+
+      - name: Clean up signing material
+        if: always() && env.KEYSTORE_BASE64 != ''
+        run: rm -f android/app/upload-keystore.jks android/key.properties
+
+      - name: Collect outputs
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/${APP}-${VERSION}.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "dist/${APP}-${VERSION}.aab"
+          ls -lh dist
+
+      - name: Upload APK artefact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.APP }}-android-apk
+          path: dist/${{ env.APP }}-${{ env.VERSION }}.apk
+          # An APK is already compressed.
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload AAB artefact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.APP }}-android-aab
+          path: dist/${{ env.APP }}-${{ env.VERSION }}.aab
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
+            || gh release view "$TAG" >/dev/null
+          cp "dist/${APP}-${VERSION}.apk" "dist/${APP}.apk"
+          gh release upload "$TAG" "dist/${APP}-${VERSION}.apk" "dist/${APP}.apk" --clobber
