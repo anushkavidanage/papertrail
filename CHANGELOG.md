@@ -37,6 +37,7 @@ Vidanage](https://anushkavidanage.github.io/).
 
 ## 1.1
 
++ Workflow refinements to enable Github releases [1.1.20 20261015 av]
 + Bug fix: Monthly receipt summary calculations [1.1.19 20261015 av]
 + Migrate to latest solid packages [1.1.18 20261012 av]
 + Refine UI to make it more userfriendly [1.1.17 20261012 av]
