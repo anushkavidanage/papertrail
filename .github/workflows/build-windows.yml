@@ -1,0 +1,176 @@
+name: Build Installers (Windows)
+
+# Builds the Windows ZIP and Inno Setup installer. Moved unchanged from
+# installers.yaml.
+#
+# Two ways to trigger it, which coexist:
+#
+# 1. A push to dev, build or installers whose commit message has one of the
+#    keywords listed per job below. Artefact names are unchanged from the
+#    original installers.yaml and the workflow name still starts with "Build
+#    Installers", so `make ginstall` (installers/update.sh) keeps uploading
+#    them to solidcommunity.au.
+#
+# 2. A version tag (v*) whose commit or tag message contains "publish" or a
+#    job's own keyword. Public builds are then also attached to that tag's
+#    GitHub Release. "bump version" is ignored on tags, so tagging the bump
+#    commit does not rebuild what the branch push already built.
+#
+# Or run it by hand from the Actions tab.
+#
+# Keywords: "bump version", "build installers", "build windows".
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev, build, installers]
+    tags: ['v*']
+
+permissions:
+  contents: write # required to create and add to a release on a tag
+
+env:
+  APP: papertrail
+  # Keep in step with FLUTTER_VERSION in ci.yaml and the other build-*.
+  FLUTTER_VERSION: "3.47.0"
+
+jobs:
+
+  # Decides which jobs run. The job-level if keeps it from even starting a
+  # runner on an ordinary push. On a tag the message comes from git and the
+  # REST API rather than head_commit, which is empty when an already-pushed
+  # commit is tagged later. Matching is case-insensitive, as GitHub's
+  # contains() was in the original installers.yaml.
+  gate:
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.ref, 'refs/tags/v')
+      || contains(github.event.head_commit.message, 'bump version')
+      || contains(github.event.head_commit.message, 'build ')
+    runs-on: ubuntu-latest
+    outputs:
+      windows: ${{ steps.check.outputs.windows }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          msg=$(git log -1 --format=%B)
+          is_tag=false
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            is_tag=true
+            # The shallow checkout flattens an annotated tag; the REST API
+            # still has its message.
+            tag_sha=$(gh api "repos/${{ github.repository }}/git/refs/tags/${{ github.ref_name }}" --jq 'select(.object.type == "tag") | .object.sha')
+            if [ -n "$tag_sha" ]; then
+              msg="$msg"$'\n'$(gh api "repos/${{ github.repository }}/git/tags/$tag_sha" --jq '.message')
+            fi
+          fi
+          echo "Message: $msg"
+          kw() { grep -qiF -- "$1" <<<"$msg"; }
+          # "bump version" counts on branch pushes only, so tagging the bump
+          # commit does not rebuild; "publish" counts on tags only.
+          bump() { [ "$is_tag" = false ] && kw "$1"; }
+          pub() { [ "$is_tag" = true ] && kw "publish"; }
+          manual() { [ "${{ github.event_name }}" = "workflow_dispatch" ]; }
+          out() { if "$@"; then echo true; else echo false; fi; }
+          {
+            echo "windows=$(out eval 'manual || pub || bump "bump version" || kw "build installers" || kw "build windows"')"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  # WINDOWS
+
+  package-windows-zip-exe:
+    needs: gate
+    if: needs.gate.outputs.windows == 'true'
+
+    # The windows-latest was not working for some instances so resort
+    # to windows-2022
+
+    runs-on: windows-2022
+
+    steps:
+      - name: Clone Repository
+        uses: actions/checkout@v6
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          architecture: x64
+          flutter-version: ${{env.FLUTTER_VERSION}}
+
+      - name: Confirm Flutter Version
+        run: flutter --version
+
+      - name: Install Flutter Project Dependencies
+        run: flutter pub get
+
+      - name: Enable Windows Desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Build Flutter Windows app
+        run: flutter build windows --release
+
+      # Package as ZIP
+
+      - name: Archive Release
+        uses: thedoctor0/zip-release@master
+        with:
+          type: 'zip'
+          filename: ${{env.APP}}-windows.zip
+          directory: build/windows/x64/runner/Release
+
+      - name: Upload Artefact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{env.APP}}-windows-zip
+          path: build/windows/x64/runner/Release/${{env.APP}}-windows.zip
+
+      # Package as EXE
+
+      - name: Check the DLLs for Inclusion in the .iss script
+        run: dir D:\a\${{ env.APP }}\${{ env.APP }}\build\windows\x64\runner\Release\
+
+      - name: Get Version from pubspec.yaml
+        run: |
+          $version = (Get-Content pubspec.yaml | Select-String '^version:[^^]*' | ForEach-Object { $_.ToString().Split(":")[1].Trim().Split("+")[0].Trim() })
+          echo "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Compile .ISS to .EXE Installer
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
+        with:
+          path: installers/app-windows.iss
+          options: /O+
+
+      - name: Upload Artefact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{env.APP}}-windows-inno
+          path: D:\a\${{env.APP}}\${{env.APP}}\installers\installers\${{env.APP}}-windows-inno.exe
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Published, not a draft, so every build workflow adds to the same
+          # release; a second create fails because the first won, hence the
+          # final view.
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
+            || gh release view "$TAG" >/dev/null
+          version=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//; s/+.*//' | tr -d '[:space:]')
+          cp "build/windows/x64/runner/Release/${APP}-windows.zip" "${APP}-${version}-windows.zip"
+          cp "installers/installers/${APP}-windows-inno.exe" "${APP}-${version}-windows-inno.exe"
+          cp "installers/installers/${APP}-windows-inno.exe" "${APP}-windows-inno.exe"
+          gh release upload "$TAG" "${APP}-${version}-windows.zip" \
+            "build/windows/x64/runner/Release/${APP}-windows.zip" \
+            "${APP}-${version}-windows-inno.exe" "${APP}-windows-inno.exe" --clobber

@@ -1,321 +1,115 @@
-name: Build Installers
+name: Build Installers (macOS)
 
-# 20241024 gjw Construct bundles for various distributions. The
-# bundles (.zip or .exe or .dmg files) are created as artefacts that
-# can be downloaded locally using the github command line `gh`. I am
-# not utilising github SECRETS yet but will do so to push the packages
-# directly to repository and to build signed packages.
+# Builds the macOS installers: the ad-hoc signed DMG and ZIP that are
+# distributed today, plus the certificate-signed variants (Developer ID
+# notarized DMG, App Store PKG, development DMG) and an unsigned-flavour
+# build. Moved unchanged from installers.yaml; see the per-job comments.
 #
-# 20251017 gjw The dev branch used to be assumed in the naming of
-# artefacts below using `${{ github.ref_name }}`. But other branch
-# names are then problematic, particularly if the branch name includes
-# `/` (our usual practice) and we wanted to skip the `dev` check for
-# limiting the builds. For testing build processes in a separate
-# branch, named other than `dev` we now use a branch named
-# `build`. All `github.ref_name` are replaced with env.RELEASE.
+# Two ways to trigger it, which coexist:
 #
-# 20251017 jesscmoore Added github secrets for macos signing during
-# build and added signing workflow as per
-# <https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications>
+# 1. A push to dev, build or installers whose commit message has one of the
+#    keywords listed per job below. Artefact names are unchanged from the
+#    original installers.yaml and the workflow name still starts with "Build
+#    Installers", so `make ginstall` (installers/update.sh) keeps uploading
+#    them to solidcommunity.au.
 #
-# 20251029 jesscmoore Use flutter flavors to build with separate build
-# configurations for app store ('staging' flavor, uses distribution
-# certificate) and developer testing ('dev' flavor, uses development
-# certificate). Workflows added for building unsigned, signed ('dev'
-# and 'staging') macos apps.
-# https://docs.flutter.dev/deployment/flavors-ios
+# 2. A version tag (v*) whose commit or tag message contains "publish" or a
+#    job's own keyword. Public builds are then also attached to that tag's
+#    GitHub Release. "bump version" is ignored on tags, so tagging the bump
+#    commit does not rebuild what the branch push already built.
 #
-# 20251018 jesscmoore Added github secrets for ios signing
-# and workflow for ios ipa archive.
+# Or run it by hand from the Actions tab: the public builds, plus the signed
+# variants when the "signed" input is ticked.
 #
-# 20251020 jesscmoore Added IOS development provisioning profile in
-# Apple Developer Program to use with manual signing
+# Keywords: "bump version", "build installers", "build macos original" for
+# the ad-hoc build; "bump version x", "build installers x" for all variants,
+# or "build macos release|unsigned|appstore|dev" for one. On a tag, only the
+# ad-hoc DMG/ZIP (README downloads) and the notarized DMG are attached to the
+# release; the App Store PKG and development builds stay artefacts.
 #
-# 20251227 gjw Review and unify the naming scheme across all
-# platforms. Remove the -dev- from file names.
+# 20260715 The unsigned, appstore and dev jobs need macos/project.yml (for
+# xcodegen) and the unsigned/staging/dev flavour schemes, which this
+# repository does not have yet, so they fail until those are added.
 
 on:
+  workflow_dispatch:
+    inputs:
+      signed:
+        description: Also build the certificate-signed variants (needs the Apple secrets)
+        type: boolean
+        default: false
   push:
-    branches:
-      - dev
-      - build
-      - installers
+    branches: [dev, build, installers]
+    tags: ['v*']
+
+permissions:
+  contents: write # required to create and add to a release on a tag
 
 env:
   APP: papertrail
-  RELEASE: dev
-  LINUX_PKGS: libsecret-1-dev libjsoncpp-dev
   MACOS_APP_RELEASE_UNSIGNED_PATH: build/macos/Build/Products/Release-unsigned
   MACOS_APP_RELEASE_STAGING_PATH: build/macos/Build/Products/Release-staging
   MACOS_APP_RELEASE_DEV_PATH: build/macos/Build/Products/Release-dev
-  FLUTTER_VERSION: "3.44.9"
+  # Keep in step with FLUTTER_VERSION in ci.yaml and the other build-*.
+  FLUTTER_VERSION: "3.47.0"
 
 jobs:
 
-  ########################################################################
-  # LINUX
-  #
-  # 20250110 gjw Originally I was building on Ubuntu 22.04 since my
-  # 24.04 version would not run on Mint 21.3. Then moved even older to
-  # Ubuntu 20.04 to get it more widely available. Seems to work on
-  # 22.04 and 24.04. Backwards the error was: "rattle:
-  # /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found
-  # (required by rattle)" On Ubuntu 20.04 the highest version of GLIBC
-  # is GLIBC2.30.
-  #
-  # 20250311 gjw Support for Ubuntu 20.04 is being deprecated
-  # https://github.com/gjwgit/rattleng/actions/runs/13753262146.
-  # Move to 22.04 to get broadest deployment.
-  #
-  # 20251226 gjw I considered combining the build for snap and zip as
-  # one job, but the snap build was somewhat independent and didn't
-  # work straight away, so keep separate until debugged. Similarly
-  # keep the DEB build separate for now, though it will probably work
-  # tacked onto the ZIP build. By being separate it is easier to test
-  # separately or to build separately as required.
-
-  package-linux-deb:
-    if: |
-      contains(github.event.head_commit.message, 'bump version') ||
-      contains(github.event.head_commit.message, 'build installers') ||
-      contains(github.event.head_commit.message, 'build linux') ||
-      contains(github.event.head_commit.message, 'build deb')
-
+  # Decides which jobs run. The job-level if keeps it from even starting a
+  # runner on an ordinary push. On a tag the message comes from git and the
+  # REST API rather than head_commit, which is empty when an already-pushed
+  # commit is tagged later. Matching is case-insensitive, as GitHub's
+  # contains() was in the original installers.yaml.
+  gate:
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.ref, 'refs/tags/v')
+      || contains(github.event.head_commit.message, 'bump version')
+      || contains(github.event.head_commit.message, 'build ')
     runs-on: ubuntu-latest
-
+    outputs:
+      original: ${{ steps.check.outputs.original }}
+      notarized: ${{ steps.check.outputs.notarized }}
+      unsigned: ${{ steps.check.outputs.unsigned }}
+      appstore: ${{ steps.check.outputs.appstore }}
+      dev: ${{ steps.check.outputs.dev }}
     steps:
-
-      - name: Clone Repository
-        uses: actions/checkout@v6
-
-      - name: Install OS Dependencies
-        run: |
-          sudo apt-get update -y
-          printf '#%.0s' {1..72}; printf '\nninja-build\n'
-          sudo apt-get install -y ninja-build
-          printf '#%.0s' {1..72}; printf '\nlibgtk-3-dev\n'
-          sudo apt-get install -y libgtk-3-dev
-          printf '#%.0s' {1..72}; printf '\nclang cmake\n'
-          sudo apt-get install -y clang cmake
-
-      - name: Install extra Linux packages
-        if: env.LINUX_PKGS != ''
-        run: |
-          printf '#%.0s' {1..72}; printf '\n${{env.LINUX_PKGS}}\n'
-          sudo apt-get install -y ${{env.LINUX_PKGS}}
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: actions/checkout@v6
         with:
-          channel: stable
-          architecture: x64
-          flutter-version: ${{env.FLUTTER_VERSION}}
-
-      - name: Confirm Flutter Version
-        run: flutter --version
-
-      - name: Install Flutter Project Dependencies
-        run: flutter pub get
-
-      - name: Enable Linux Build
-        run: flutter config --enable-linux-desktop
-
-      - name: Build Flutter Linux app
-        run: flutter build linux --release
-
-      # Package as DEB
-
-      - name: Install Packaging Tools
-        run: sudo apt-get install -y dpkg-dev fakeroot
-
-      - name: Get Version from pubspec.yaml
-        id: vars
+          fetch-depth: 1
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNED: ${{ inputs.signed }}
         run: |
-          VERSION=$(yq eval '.version' pubspec.yaml | sed 's/+.*//')
-          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          msg=$(git log -1 --format=%B)
+          is_tag=false
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            is_tag=true
+            # The shallow checkout flattens an annotated tag; the REST API
+            # still has its message.
+            tag_sha=$(gh api "repos/${{ github.repository }}/git/refs/tags/${{ github.ref_name }}" --jq 'select(.object.type == "tag") | .object.sha')
+            if [ -n "$tag_sha" ]; then
+              msg="$msg"$'\n'$(gh api "repos/${{ github.repository }}/git/tags/$tag_sha" --jq '.message')
+            fi
+          fi
+          echo "Message: $msg"
+          kw() { grep -qiF -- "$1" <<<"$msg"; }
+          # "bump version" counts on branch pushes only, so tagging the bump
+          # commit does not rebuild; "publish" counts on tags only.
+          bump() { [ "$is_tag" = false ] && kw "$1"; }
+          pub() { [ "$is_tag" = true ] && kw "publish"; }
+          manual() { [ "${{ github.event_name }}" = "workflow_dispatch" ]; }
+          signed() { manual && [ "$SIGNED" = "true" ]; }
+          out() { if "$@"; then echo true; else echo false; fi; }
+          {
+            echo "original=$(out eval 'manual || pub || bump "bump version" || kw "build installers" || kw "build macos original"')"
+            echo "notarized=$(out eval 'signed || bump "bump version x" || kw "build installers x" || kw "build macos release"')"
+            echo "unsigned=$(out eval 'signed || bump "bump version x" || kw "build installers x" || kw "build macos unsigned"')"
+            echo "appstore=$(out eval 'signed || bump "bump version x" || kw "build installers x" || kw "build macos appstore"')"
+            echo "dev=$(out eval 'signed || bump "bump version x" || kw "build installers x" || kw "build macos dev"')"
+          } | tee -a "$GITHUB_OUTPUT"
 
-      - name: Check the app version number
-        run: echo ${VERSION}
-
-      - name: Deb Package
-        run: |
-          mkdir -p build/${{env.APP}}_${VERSION}_amd64/DEBIAN
-          mkdir -p build/${{env.APP}}_${VERSION}_amd64/usr/bin
-          mkdir -p build/${{env.APP}}_${VERSION}_amd64/usr/lib/${{env.APP}}
-          mkdir -p build/${{env.APP}}_${VERSION}_amd64/usr/share/applications
-          mkdir -p build/${{env.APP}}_${VERSION}_amd64/usr/share/icons/hicolor/512x512/apps
-
-          echo "Package: ${{env.APP}}" >> build/${{env.APP}}_${VERSION}_amd64/DEBIAN/control
-          echo "Version: ${VERSION}" >> build/${{env.APP}}_${VERSION}_amd64/DEBIAN/control
-          echo "Section: utils" >> build/${{env.APP}}_${VERSION}_amd64/DEBIAN/control
-          echo "Priority: optional"  >> build/${{env.APP}}_${VERSION}_amd64/DEBIAN/control
-          echo "Architecture: amd64" >> build/${{env.APP}}_${VERSION}_amd64/DEBIAN/control
-          echo "Depends: libgtk-3-0, libblkid1, liblzma5" >> build/${{env.APP}}_${VERSION}_amd64/DEBIAN/control
-          echo "Maintainer: Graham Williams <graham.williams@togaware.com>" >> build/${{env.APP}}_${VERSION}_amd64/DEBIAN/control
-          echo "Description: DESCRIPTION" >> build/${{env.APP}}_${VERSION}_amd64/DEBIAN/control
-
-          echo "[Desktop Entry]" >> build/${{env.APP}}_${VERSION}_amd64/usr/share/applications/com.togaware.${{env.APP}}.desktop
-          echo "Name=${{env.APP}}" >> build/${{env.APP}}_${VERSION}_amd64/usr/share/applications/com.togaware.${{env.APP}}.desktop
-          echo "Comment=Collect your documents in Pods" >> build/${{env.APP}}_${VERSION}_amd64/usr/share/applications/com.togaware.${{env.APP}}.desktop
-          echo "Exec=/usr/bin/${{env.APP}}" >> build/${{env.APP}}_${VERSION}_amd64/usr/share/applications/com.togaware.${{env.APP}}.desktop
-          echo "Icon=${{env.APP}}" >> build/${{env.APP}}_${VERSION}_amd64/usr/share/applications/com.togaware.${{env.APP}}.desktop
-          echo "Terminal=false" >> build/${{env.APP}}_${VERSION}_amd64/usr/share/applications/com.togaware.${{env.APP}}.desktop
-          echo "Type=Application" >> build/${{env.APP}}_${VERSION}_amd64/usr/share/applications/com.togaware.${{env.APP}}.desktop
-          echo "Categories=Utility;" >> build/${{env.APP}}_${VERSION}_amd64/usr/share/applications/com.togaware.${{env.APP}}.desktop
-
-          # Copy the built flutter application.
-
-          cp -r build/linux/x64/release/bundle/* build/${{env.APP}}_${VERSION}_amd64/usr/lib/${{env.APP}}/
-
-          # Ensure /usr/bin/${APP} points to the actual executable.
-
-          (cd build/${{env.APP}}_${VERSION}_amd64/usr/bin; ln -s ../lib/${{env.APP}}/${{env.APP}} ${{env.APP}})
-
-          # Copy the app icon which is assumed to be named ${APP}.png
-          # in the installers folder.
-
-          cp assets/images/app_icon.png build/${{env.APP}}_${VERSION}_amd64/usr/share/icons/hicolor/512x512/apps/${{env.APP}}.png
-
-          # Set correct permissions.
-
-          chmod -R 755 build/${{env.APP}}_${VERSION}_amd64/DEBIAN
-          find build/${{env.APP}}_${VERSION}_amd64/usr -type d -exec chmod 755 {} \;
-          find build/${{env.APP}}_${VERSION}_amd64/usr -type f -exec chmod 644 {} \;
-          chmod 755 build/${{env.APP}}_${VERSION}_amd64/usr/lib/${{env.APP}}/${{env.APP}}
-
-          # Build the debian package.
-
-          dpkg-deb --build build/${{env.APP}}_${VERSION}_amd64
-
-      - name: Upload deb artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{env.APP}}-linux-deb
-          path: build/${{env.APP}}_${{env.VERSION}}_amd64.deb
-
-  package-linux-zip:
-    if: |
-      contains(github.event.head_commit.message, 'bump version') ||
-      contains(github.event.head_commit.message, 'build installers') ||
-      contains(github.event.head_commit.message, 'build linux')
-
-    runs-on: ubuntu-latest
-
-    steps:
-
-      - name: Clone Repository
-        uses: actions/checkout@v6
-
-      - name: Install OS Dependencies
-        run: |
-          sudo apt-get update -y
-          printf '#%.0s' {1..72}; printf '\nninja-build\n'
-          sudo apt-get install -y ninja-build
-          printf '#%.0s' {1..72}; printf '\nlibgtk-3-dev\n'
-          sudo apt-get install -y libgtk-3-dev
-          printf '#%.0s' {1..72}; printf '\nclang cmake\n'
-          sudo apt-get install -y clang cmake
-
-      - name: Install extra Linux packages
-        if: env.LINUX_PKGS != ''
-        run: |
-          printf '#%.0s' {1..72}; printf '\n${{env.LINUX_PKGS}}\n'
-          sudo apt-get install -y ${{env.LINUX_PKGS}}
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          architecture: x64
-          flutter-version: ${{env.FLUTTER_VERSION}}
-
-      - name: Confirm Flutter Version
-        run: flutter --version
-
-      - name: Install Flutter Project Dependencies
-        run: flutter pub get
-
-      - name: Enable Linux Build
-        run: flutter config --enable-linux-desktop
-
-      - name: Build Flutter Linux app
-        run: flutter build linux --release
-
-      # Package as ZIP
-
-      - name: Zip Bundle
-        uses: thedoctor0/zip-release@master
-        with:
-          type: "zip"
-          filename: ${{env.APP}}-linux.zip
-          directory: build/linux/x64/release/bundle
-
-      - name: Upload Artefact
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{env.APP}}-linux-zip
-          path: build/linux/x64/release/bundle/${{env.APP}}-linux.zip
-
-  package-linux-snap:
-    if: |
-      contains(github.event.head_commit.message, 'bump version') ||
-      contains(github.event.head_commit.message, 'build installers') ||
-      contains(github.event.head_commit.message, 'build linux') ||
-      contains(github.event.head_commit.message, 'build snap')
-
-    runs-on: ubuntu-latest
-
-    steps:
-
-      - name: Clone Repository
-        uses: actions/checkout@v6
-
-      - name: Install OS Dependencies
-        run: |
-          sudo apt-get update -y
-
-      # 20260311 gjw be sure to add dependencies into the snapcraft
-      # file rather than here, including llvm, lld, libsecret-1-dev,
-      # libjsoncpp-dev, for flutter_secure_storage
-
-      - name: Install extra Linux packages
-        if: env.LINUX_PKGS != ''
-        run: |
-          printf '#%.0s' {1..72}; printf '\n${{env.LINUX_PKGS}}\n'
-          sudo apt-get install -y ${{env.LINUX_PKGS}}
-
-      - name: Build snap
-        if: hashFiles('snap/**') != ''
-        uses: snapcore/action-build@v1
-        id: build
-
-      - name: Upload snap artifact
-        if: hashFiles('snap/**') != ''
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ env.APP }}-linux-snap
-          path: ${{ steps.build.outputs.snap }}
-
-  # publish:
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   # Only publish on tag pushes
-  #   if: startsWith(github.ref, 'refs/tags/v')
-  #   steps:
-  #     - name: Download snap artifact
-  #       uses: actions/download-artifact@v6
-  #       with:
-  #         name: snap-package
-
-  #     - name: Publish to Snap Store
-  #       uses: snapcore/action-publish@v1
-  #       env:
-  #         SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
-  #       with:
-  #         snap: '*.snap'
-  #         release: stable
-
-  ########################################################################
   # MACOS - ORIGINAL - DEPRECATED EVENTUALLY
   #
   # 20251223 gjw This is the original script for building the macOS
@@ -332,10 +126,8 @@ jobs:
   # steps have a template, this ORIGINAL build can be removed.
 
   package-macos-dmg-zip-original:
-    if: |
-      contains(github.event.head_commit.message, 'bump version') ||
-      contains(github.event.head_commit.message, 'build installers') ||
-      contains(github.event.head_commit.message, 'build macos original')
+    needs: gate
+    if: needs.gate.outputs.original == 'true'
 
     # 20260809 gjw Was pinned to macos-14 because later images reported
     # "Xcode failed to resolve Swift Package Manager dependencies". The real
@@ -476,6 +268,25 @@ jobs:
         with:
           name: ${{env.APP}}-macos-zip
           path: ${{env.APP}}-macos.zip
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Published, not a draft, so every build workflow adds to the same
+          # release; a second create fails because the first won, hence the
+          # final view.
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
+            || gh release view "$TAG" >/dev/null
+          version=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//; s/+.*//' | tr -d '[:space:]')
+          cp "${APP}-macos.dmg" "${APP}-${version}-macos.dmg"
+          cp "${APP}-macos.zip" "${APP}-${version}-macos.zip"
+          gh release upload "$TAG" "${APP}-${version}-macos.dmg" "${APP}-macos.dmg" \
+            "${APP}-${version}-macos.zip" "${APP}-macos.zip" --clobber
 
   ########################################################################
   # MACOS - Graham's attempt to use certificate and appstore
@@ -501,10 +312,8 @@ jobs:
   package-macos-dmg-notarized:
     env:
       DEVELOPER_ID_APP_CERT_NAME: "Developer ID Application: Togaware Pty Ltd (G7843T3SD3)"
-    if: |
-      contains(github.event.head_commit.message, 'bump version x') ||
-      contains(github.event.head_commit.message, 'build installers x') ||
-      contains(github.event.head_commit.message, 'build macos release')
+    needs: gate
+    if: needs.gate.outputs.notarized == 'true'
     runs-on: macos-latest
     steps:
       - name: Clone Repository
@@ -598,8 +407,26 @@ jobs:
       - name: Upload Artefact
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ env.APP }}-macos-dmg
+          name: ${{ env.APP }}-macos-notarized-dmg
           path: ${{ env.APP }}-macos.dmg
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Published, not a draft, so every build workflow adds to the same
+          # release; a second create fails because the first won, hence the
+          # final view.
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
+            || gh release view "$TAG" >/dev/null
+          version=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//; s/+.*//' | tr -d '[:space:]')
+          cp "${APP}-macos.dmg" "${APP}-${version}-macos-notarized.dmg"
+          cp "${APP}-macos.dmg" "${APP}-macos-notarized.dmg"
+          gh release upload "$TAG" "${APP}-${version}-macos-notarized.dmg" "${APP}-macos-notarized.dmg" --clobber
 
   ########################################################################
   # MACOS - UNSIGNED
@@ -618,10 +445,8 @@ jobs:
   # PROVISIONING_PROFILE_SPECIFIER: ""
 
   package-macos-dmg-zip-unsigned:
-    if: |
-      contains(github.event.head_commit.message, 'bump version x') ||
-      contains(github.event.head_commit.message, 'build installers x') ||
-      contains(github.event.head_commit.message, 'build macos unsigned')
+    needs: gate
+    if: needs.gate.outputs.unsigned == 'true'
     runs-on: macos-latest
     steps:
       - name: Clone Repository
@@ -740,10 +565,8 @@ jobs:
   package-macos-pkg-appstore:
     env:
       MACOS_INSTALL_CERTIFICATE_NAME: "3rd Party Mac Developer Installer: Togaware Pty Ltd (G7843T3SD3)"
-    if: |
-      contains(github.event.head_commit.message, 'bump version x') ||
-      contains(github.event.head_commit.message, 'build installers x') ||
-      contains(github.event.head_commit.message, 'build macos appstore')
+    needs: gate
+    if: needs.gate.outputs.appstore == 'true'
     runs-on: macos-latest
     steps:
       - name: Clone Repository
@@ -804,9 +627,9 @@ jobs:
           echo -n "$MACOS_PROVISION_PROFILE" | base64 --decode -o $PP_PATH
 
           echo "Create temporary keychain"
-          security create-keychain -p "$MACOS_KEYCHAIN_PWD" $KEYCHAIN_PATH
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$MACOS_KEYCHAIN_PWD" $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
           echo "Import build certificate to keychain"
           security import $BUILD_CERTIFICATE_PATH -P "$MACOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
@@ -926,10 +749,8 @@ jobs:
   # Profile creation date: 29/10/2025
 
   package-macos-dmg-zip-dev:
-    if: |
-      contains(github.event.head_commit.message, 'bump version x') ||
-      contains(github.event.head_commit.message, 'build installers x') ||
-      contains(github.event.head_commit.message, 'build macos dev')
+    needs: gate
+    if: needs.gate.outputs.dev == 'true'
     runs-on: macos-latest
     steps:
       - name: Clone Repository
@@ -982,9 +803,9 @@ jobs:
           echo -n "$MACOS_PROVISION_PROFILE_DEV" | base64 --decode -o $PP_PATH
 
           echo "Create temporary keychain"
-          security create-keychain -p "$MACOS_KEYCHAIN_PWD" $KEYCHAIN_PATH
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$MACOS_KEYCHAIN_PWD" $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
           echo "Import certificate to keychain"
           security import $CERTIFICATE_PATH -P "$MACOS_CERTIFICATE_DEV_PWD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
@@ -1063,235 +884,3 @@ jobs:
       # Ref: https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications
 
   ########################################################################
-  # IOS
-
-  package-ios-ipa:
-    if: |
-      contains(github.event.head_commit.message, 'bump version x') ||
-      contains(github.event.head_commit.message, 'build installers x') ||
-      contains(github.event.head_commit.message, 'build ios')
-    runs-on: macos-latest
-    env:
-      IOS_APP_RELEASE_PATH: build/ios/ipa
-      IOS_ARCHIVE_RELEASE_PATH: build/ios/archive
-
-    steps:
-      - name: Clone Repository
-        uses: actions/checkout@v6
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          flutter-version: ${{env.FLUTTER_VERSION}}
-
-      - name: Confirm Flutter Version
-        run: flutter --version
-
-      - name: Install Flutter Project Dependencies
-        run: flutter pub get
-
-      - name: Enable iOS
-        run: flutter config --enable-ios
-
-      # Install certificate and IOS provisioning profile for app signing
-
-      # iOS entitlements are different to the macOS entitlements
-      # so uses a provisioning profile for iOS.
-      # The provisioning profile links the signing certificate, Apple
-      # developer account and entitlements for the app build.
-
-      - name: Install Apple certificate and IOS provisioning profile
-        env:
-          IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
-          IOS_CERTIFICATE_PWD: ${{ secrets.IOS_CERTIFICATE_PWD }}
-          IOS_PROVISION_PROFILE: ${{ secrets.IOS_PROVISION_PROFILE }}
-          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PWD }}
-        run: |
-          echo "Create variables for filepaths for certificate, provisioning profile, and keychain"
-          # These vars must be assigned at run time
-          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-
-          echo "Import certificate and provisioning profile from secrets"
-          echo -n "$IOS_CERTIFICATE" | base64 --decode -o $CERTIFICATE_PATH
-          echo -n "$IOS_PROVISION_PROFILE" | base64 --decode -o $PP_PATH
-
-          echo "Create temporary keychain"
-          security create-keychain -p "$MACOS_KEYCHAIN_PWD" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$MACOS_KEYCHAIN_PWD" $KEYCHAIN_PATH
-
-          echo "Import certificate to keychain"
-          security import $CERTIFICATE_PATH -P "$IOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-
-          echo "Add apple and apple-tool to partition list for key to allow build codesign to access keychain"
-          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-
-          # TODO: make this the save path for the decoded profile
-          echo "Save provisioning profile to location expected by Xcode build"
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
-
-      - name: Display temporary keychain
-        run: |
-
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          security list-keychain -d user -s $KEYCHAIN_PATH
-
-      - name: List installed provisioning profiles
-        run: ls -lh ~/Library/MobileDevice/Provisioning\ Profiles
-
-      # Build and sign the app
-
-      - name: Build Flutter iOS app archive
-        # By default `ipa` produces a release mode .ipa archived version of
-        # .app bundle, with settings tailored for Apple App Store
-        # distribution. Use --export-method
-        # By default, app is codesigned, unless --no-codesign is used.
-        # run: flutter build ipa
-        # Option for manual signing
-        # Use --verbose to debug build and signing issues
-        run: flutter build ipa --export-options-plist=ios/GithubActionsExportOptions.plist
-
-      - name: Note the xcarchive created
-        run: |
-          ls -lh ${{ env.IOS_ARCHIVE_RELEASE_PATH }}
-
-      - name: Note the IPA created
-        run: |
-          ls -lh ${{ env.IOS_APP_RELEASE_PATH }}
-
-      - name: Extract IPA
-        run: |
-          mkdir "${{ env.IOS_APP_RELEASE_PATH }}/extracted_ipa"
-          unzip "${{ env.IOS_APP_RELEASE_PATH }}/${{ env.APP }}.ipa" -d "${{ env.IOS_APP_RELEASE_PATH }}/extracted_ipa"
-
-      - name: Check .app bundle extracted from IPA
-        # Check app bundle was extracted
-        id: check_app
-        run: |
-          # APP_PATH=$(find "${{ env.IOS_APP_RELEASE_PATH }}/extracted_ipa/Payload" -d -name "*.app" -print -quit)
-          # echo "extracted .app path: $APP_PATH"
-          if test -d "${{ env.IOS_APP_RELEASE_PATH }}/extracted_ipa/Payload/Runner.app"; then
-            echo "IPA extracted to extracted_ipa/Payload/Runner.app."
-            echo "APP_EXTRACTED=true" >> $GITHUB_OUTPUT
-          else
-            echo ".app bundle not extracted from IPA."
-            echo "APP_EXTRACTED=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Check IPA code signature
-        # Ensure an app bundle was extracted
-        if: steps.check_app.outputs.APP_EXTRACTED == 'true'
-        run: |
-          codesign --display --verbose=2 "${{ env.IOS_APP_RELEASE_PATH }}/extracted_ipa/Payload/Runner.app"
-
-      - name: Upload Artefact
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ env.APP }}-ipa
-          path: ${{ env.IOS_APP_RELEASE_PATH }}/${{ env.APP }}.ipa
-
-      # # Important! Cleanup: remove the certificate and provisioning profile from the runner!
-      # - name: Clean up keychain and provisioning profile
-      #   if: ${{ always() }}
-      #   run: |
-      #     security delete-keychain $KEYCHAIN_PATH
-      #     rm ~/Library/MobileDevice/Provisioning\ Profiles/build_pp.mobileprovision
-
-      # 20251018 jesscmoore:
-      # If ipa not distributed through the app store or enterprise MDM
-      # users will asked to trust developer in iOS settings during
-      # the install:
-      # https://help.apple.com/xcode/mac/current/#/dev96a12fb84
-
-      # 20251020 jesscmoore:
-      # Using a "development" certificate and associated
-      # provisioning profile
-      # and "debugging" export method
-      # may limit installation to only devices
-      # registered in the Apple Developer Program
-      # account.
-      # Use a "distribution" certificate and associated
-      # provisioning profile and "ad-hoc" export method for
-      # testing on devices that don't need to be registered
-      # on Apple Develop Program account.
-      # The distribution certificate and associated
-      # provisioning profile can be used with app-store export
-      # method.
-
-  ########################################################################
-  # WINDOWS
-
-  package-windows-zip-exe:
-    if: |
-      contains(github.event.head_commit.message, 'bump version') ||
-      contains(github.event.head_commit.message, 'build installers') ||
-      contains(github.event.head_commit.message, 'build windows')
-
-    # The windows-latest was not working for some instances so resort
-    # to windows-2022
-
-    runs-on: windows-2022
-
-    steps:
-      - name: Clone Repository
-        uses: actions/checkout@v6
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          architecture: x64
-          flutter-version: ${{env.FLUTTER_VERSION}}
-
-      - name: Confirm Flutter Version
-        run: flutter --version
-
-      - name: Install Flutter Project Dependencies
-        run: flutter pub get
-
-      - name: Enable Windows Desktop
-        run: flutter config --enable-windows-desktop
-
-      - name: Build Flutter Windows app
-        run: flutter build windows --release
-
-      # Package as ZIP
-
-      - name: Archive Release
-        uses: thedoctor0/zip-release@master
-        with:
-          type: 'zip'
-          filename: ${{env.APP}}-windows.zip
-          directory: build/windows/x64/runner/Release
-
-      - name: Upload Artefact
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{env.APP}}-windows-zip
-          path: build/windows/x64/runner/Release/${{env.APP}}-windows.zip
-
-      # Package as EXE
-
-      - name: Check the DLLs for Inclusion in the .iss script
-        run: dir D:\a\${{ env.APP }}\${{ env.APP }}\build\windows\x64\runner\Release\
-
-      - name: Get Version from pubspec.yaml
-        run: |
-          $version = (Get-Content pubspec.yaml | Select-String '^version:[^^]*' | ForEach-Object { $_.ToString().Split(":")[1].Trim().Split("+")[0].Trim() })
-          echo "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Compile .ISS to .EXE Installer
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
-        with:
-          path: installers/app-windows.iss
-          options: /O+
-
-      - name: Upload Artefact
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{env.APP}}-windows-inno
-          path: D:\a\${{env.APP}}\${{env.APP}}\installers\installers\${{env.APP}}-windows-inno.exe

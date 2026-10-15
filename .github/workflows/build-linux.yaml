@@ -1,0 +1,343 @@
+name: Build Installers (Linux)
+
+# Builds the Linux installers: .deb, .zip and .snap.
+#
+# Two ways to trigger it, which coexist:
+#
+# 1. A push to dev, build or installers whose commit message contains
+#    "bump version", "build installers", "build linux", or "build deb" /
+#    "build snap" for just that package. The artefacts keep the names
+#    installers/update.sh looks for (papertrail-linux-deb, -linux-zip,
+#    -linux-snap), and the workflow name still starts with "Build
+#    Installers", so `make ginstall` keeps uploading them to
+#    solidcommunity.au unchanged.
+#
+# 2. A version tag (v*) whose commit or tag message contains "publish" or
+#    "build linux" (or "build deb" / "build snap"). The packages are then
+#    also attached to that tag's GitHub Release, versioned and under the
+#    stable names the README links to, e.g.
+#      https://github.com/anushkavidanage/papertrail/releases/latest/download/papertrail_amd64.deb
+#    "bump version" is ignored on tags, so tagging the bump commit does not
+#    rebuild what the branch push already built.
+#
+# Or run it by hand from the Actions tab (builds every package).
+#
+# Keyword matching is case-insensitive, as GitHub's contains() was in the
+# original installers.yaml.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev, build, installers]
+    tags: ['v*']
+
+permissions:
+  contents: write # required to create and add to a release on a tag
+
+env:
+  APP: papertrail
+  # Extra apt packages needed at build time beyond the base GTK/ninja/cmake
+  # toolchain. libsecret-1-dev and libjsoncpp-dev are for
+  # flutter_secure_storage.
+  LINUX_PKGS: libsecret-1-dev libjsoncpp-dev
+  # Keep in step with FLUTTER_VERSION in ci.yaml and the other build-*.
+  FLUTTER_VERSION: "3.47.0"
+
+jobs:
+
+  # Decides which packages to build. The job-level if keeps it from even
+  # starting a runner on an ordinary push. On a tag the message comes from
+  # git and the REST API rather than head_commit, which is empty when an
+  # already-pushed commit is tagged later.
+  gate:
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.ref, 'refs/tags/v')
+      || contains(github.event.head_commit.message, 'bump version')
+      || contains(github.event.head_commit.message, 'build ')
+    runs-on: ubuntu-latest
+    outputs:
+      deb: ${{ steps.check.outputs.deb }}
+      zip: ${{ steps.check.outputs.zip }}
+      snap: ${{ steps.check.outputs.snap }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          msg=$(git log -1 --format=%B)
+          is_tag=false
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            is_tag=true
+            # The shallow checkout flattens an annotated tag; the REST API
+            # still has its message.
+            tag_sha=$(gh api "repos/${{ github.repository }}/git/refs/tags/${{ github.ref_name }}" --jq 'select(.object.type == "tag") | .object.sha')
+            if [ -n "$tag_sha" ]; then
+              msg="$msg"$'\n'$(gh api "repos/${{ github.repository }}/git/tags/$tag_sha" --jq '.message')
+            fi
+          fi
+          echo "Message: $msg"
+          kw() { grep -qiF -- "$1" <<<"$msg"; }
+          # "bump version" counts on branch pushes only; "publish" on tags only.
+          bump() { [ "$is_tag" = false ] && kw "bump version"; }
+          pub() { [ "$is_tag" = true ] && kw "publish"; }
+          all() { [ "${{ github.event_name }}" = "workflow_dispatch" ]; }
+          common() { all || bump || pub || kw "build installers" || kw "build linux"; }
+          out() { if "$@"; then echo true; else echo false; fi; }
+          {
+            echo "deb=$(out eval 'common || kw "build deb"')"
+            echo "zip=$(out common)"
+            echo "snap=$(out eval 'common || kw "build snap"')"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  ########################################################################
+  # DEB
+  #
+  # 20250311 gjw Built on Ubuntu 22.04 for the broadest deployment: a binary
+  # built on a newer Ubuntu fails on older distros with "GLIBC_2.xx not
+  # found".
+
+  package-linux-deb:
+    needs: gate
+    if: needs.gate.outputs.deb == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+
+      - name: Clone Repository
+        uses: actions/checkout@v6
+
+      - name: Install OS Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ninja-build libgtk-3-dev clang cmake
+
+      - name: Install extra Linux packages
+        if: env.LINUX_PKGS != ''
+        run: sudo apt-get install -y ${{ env.LINUX_PKGS }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          architecture: x64
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Confirm Flutter Version
+        run: flutter --version
+
+      - name: Install Flutter Project Dependencies
+        run: flutter pub get
+
+      - name: Enable Linux Build
+        run: flutter config --enable-linux-desktop
+
+      - name: Build Flutter Linux app
+        run: flutter build linux --release
+
+      - name: Install Packaging Tools
+        run: sudo apt-get install -y dpkg-dev fakeroot
+
+      - name: Get Version from pubspec.yaml
+        run: |
+          VERSION=$(yq eval '.version' pubspec.yaml | sed 's/+.*//')
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Deb Package
+        run: |
+          set -euo pipefail
+          pkg="build/${APP}_${VERSION}_amd64"
+          mkdir -p "$pkg/DEBIAN" "$pkg/usr/bin" "$pkg/usr/lib/${APP}" \
+                   "$pkg/usr/share/applications" \
+                   "$pkg/usr/share/icons/hicolor/512x512/apps"
+
+          # libsecret and libjsoncpp are runtime dependencies of
+          # flutter_secure_storage, which holds the Pod session.
+          cat > "$pkg/DEBIAN/control" <<EOF
+          Package: ${APP}
+          Version: ${VERSION}
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Depends: libgtk-3-0, libsecret-1-0, libjsoncpp25, libblkid1, liblzma5
+          Maintainer: Anushka Vidanage <Anushka.Vidanage@anu.edu.au>
+          Homepage: https://github.com/anushkavidanage/papertrail
+          Description: Track purchase receipts in your own Solid Pod
+           Papertrail keeps every purchase receipt, warranty and attachment
+           encrypted in the user's own Solid Pod rather than on a
+           third-party server.
+          EOF
+
+          # The file name matches APPLICATION_ID in linux/CMakeLists.txt.
+          cat > "$pkg/usr/share/applications/com.togaware.${APP}.desktop" <<EOF
+          [Desktop Entry]
+          Name=Papertrail
+          Comment=Track purchase receipts in your own Solid Pod
+          Exec=/usr/bin/${APP}
+          Icon=${APP}
+          Terminal=false
+          Type=Application
+          Categories=Office;Finance;
+          StartupWMClass=com.togaware.${APP}
+          EOF
+
+          cp -r build/linux/x64/release/bundle/* "$pkg/usr/lib/${APP}/"
+          (cd "$pkg/usr/bin" && ln -s "../lib/${APP}/${APP}" "${APP}")
+          cp assets/images/app_icon.png "$pkg/usr/share/icons/hicolor/512x512/apps/${APP}.png"
+
+          chmod -R 755 "$pkg/DEBIAN"
+          find "$pkg/usr" -type d -exec chmod 755 {} \;
+          find "$pkg/usr" -type f -exec chmod 644 {} \;
+          chmod 755 "$pkg/usr/lib/${APP}/${APP}"
+
+          dpkg-deb --root-owner-group --build "$pkg"
+
+      - name: Upload deb artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.APP }}-linux-deb
+          path: build/${{ env.APP }}_${{ env.VERSION }}_amd64.deb
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Published, not a draft, so every build workflow adds to the same
+          # release; a second create fails because the first won, hence the
+          # final view.
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
+            || gh release view "$TAG" >/dev/null
+          cp "build/${APP}_${VERSION}_amd64.deb" "build/${APP}_amd64.deb"
+          gh release upload "$TAG" "build/${APP}_${VERSION}_amd64.deb" "build/${APP}_amd64.deb" --clobber
+
+  ########################################################################
+  # ZIP
+
+  package-linux-zip:
+    needs: gate
+    if: needs.gate.outputs.zip == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+
+      - name: Clone Repository
+        uses: actions/checkout@v6
+
+      - name: Install OS Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ninja-build libgtk-3-dev clang cmake
+
+      - name: Install extra Linux packages
+        if: env.LINUX_PKGS != ''
+        run: sudo apt-get install -y ${{ env.LINUX_PKGS }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          architecture: x64
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Confirm Flutter Version
+        run: flutter --version
+
+      - name: Install Flutter Project Dependencies
+        run: flutter pub get
+
+      - name: Enable Linux Build
+        run: flutter config --enable-linux-desktop
+
+      - name: Build Flutter Linux app
+        run: flutter build linux --release
+
+      - name: Zip Bundle
+        uses: thedoctor0/zip-release@master
+        with:
+          type: "zip"
+          filename: ${{ env.APP }}-linux.zip
+          directory: build/linux/x64/release/bundle
+
+      - name: Upload Artefact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.APP }}-linux-zip
+          path: build/linux/x64/release/bundle/${{ env.APP }}-linux.zip
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
+            || gh release view "$TAG" >/dev/null
+          version=$(yq eval '.version' pubspec.yaml | sed 's/+.*//')
+          zip="build/linux/x64/release/bundle/${APP}-linux.zip"
+          cp "$zip" "build/${APP}-${version}-linux.zip"
+          gh release upload "$TAG" "build/${APP}-${version}-linux.zip" "$zip" --clobber
+
+  ########################################################################
+  # SNAP
+  #
+  # 20260311 gjw Be sure to add dependencies into the snapcraft file rather
+  # than here, including llvm, lld, libsecret-1-dev, libjsoncpp-dev, for
+  # flutter_secure_storage. The snap builds in its own core24 environment,
+  # so the runner's Ubuntu version does not limit where it runs.
+
+  package-linux-snap:
+    needs: gate
+    if: needs.gate.outputs.snap == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+
+      - name: Clone Repository
+        uses: actions/checkout@v6
+
+      - name: Build snap
+        if: hashFiles('snap/**') != ''
+        uses: snapcore/action-build@v1
+        id: build
+
+      - name: Upload snap artifact
+        if: hashFiles('snap/**') != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.APP }}-linux-snap
+          path: ${{ steps.build.outputs.snap }}
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v') && hashFiles('snap/**') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          SNAP: ${{ steps.build.outputs.snap }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
+            || gh release view "$TAG" >/dev/null
+          cp "$SNAP" "${APP}_amd64.snap"
+          gh release upload "$TAG" "$SNAP" "${APP}_amd64.snap" --clobber
+
+  # To publish to the Snap Store later, add a job that downloads the
+  # papertrail-linux-snap artefact and runs snapcore/action-publish@v1 with
+  # SNAPCRAFT_STORE_CREDENTIALS from a secret.
