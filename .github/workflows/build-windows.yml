@@ -167,10 +167,5 @@ jobs:
           gh release view "$TAG" >/dev/null 2>&1 \
             || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
             || gh release view "$TAG" >/dev/null
-          version=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//; s/+.*//' | tr -d '[:space:]')
-          cp "build/windows/x64/runner/Release/${APP}-windows.zip" "${APP}-${version}-windows.zip"
-          cp "installers/installers/${APP}-windows-inno.exe" "${APP}-${version}-windows-inno.exe"
-          cp "installers/installers/${APP}-windows-inno.exe" "${APP}-windows-inno.exe"
-          gh release upload "$TAG" "${APP}-${version}-windows.zip" \
-            "build/windows/x64/runner/Release/${APP}-windows.zip" \
-            "${APP}-${version}-windows-inno.exe" "${APP}-windows-inno.exe" --clobber
+          gh release upload "$TAG" "build/windows/x64/runner/Release/${APP}-windows.zip" \
+            "installers/installers/${APP}-windows-inno.exe" --clobber

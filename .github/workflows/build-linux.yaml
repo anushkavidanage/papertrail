@@ -14,8 +14,8 @@ name: Build Installers (Linux)
 #
 # 2. A version tag (v*) whose commit or tag message contains "publish" or
 #    "build linux" (or "build deb" / "build snap"). The packages are then
-#    also attached to that tag's GitHub Release, versioned and under the
-#    stable names the README links to, e.g.
+#    also attached to that tag's GitHub Release under the stable names the
+#    README links to (the release itself is versioned by its tag), e.g.
 #      https://github.com/anushkavidanage/papertrail/releases/latest/download/papertrail_amd64.deb
 #    "bump version" is ignored on tags, so tagging the bump commit does not
 #    rebuild what the branch push already built.
@@ -218,7 +218,7 @@ jobs:
             || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
             || gh release view "$TAG" >/dev/null
           cp "build/${APP}_${VERSION}_amd64.deb" "build/${APP}_amd64.deb"
-          gh release upload "$TAG" "build/${APP}_${VERSION}_amd64.deb" "build/${APP}_amd64.deb" --clobber
+          gh release upload "$TAG" "build/${APP}_amd64.deb" --clobber
 
   ########################################################################
   # ZIP
@@ -287,10 +287,7 @@ jobs:
           gh release view "$TAG" >/dev/null 2>&1 \
             || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
             || gh release view "$TAG" >/dev/null
-          version=$(yq eval '.version' pubspec.yaml | sed 's/+.*//')
-          zip="build/linux/x64/release/bundle/${APP}-linux.zip"
-          cp "$zip" "build/${APP}-${version}-linux.zip"
-          gh release upload "$TAG" "build/${APP}-${version}-linux.zip" "$zip" --clobber
+          gh release upload "$TAG" "build/linux/x64/release/bundle/${APP}-linux.zip" --clobber
 
   ########################################################################
   # SNAP
@@ -309,6 +306,17 @@ jobs:
 
       - name: Clone Repository
         uses: actions/checkout@v6
+
+      # snapcraft.yaml carries its own version, which `make bump` keeps in
+      # step via `make versions` but a bump made by hand does not (1.1.15 to
+      # 1.1.20 all shipped as 1.1.14). Stamp it from pubspec.yaml here so
+      # the snap always matches the app.
+      - name: Set snap version from pubspec.yaml
+        if: hashFiles('snap/**') != ''
+        run: |
+          version=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//; s/+.*//' | tr -d '[:space:]')
+          sed -i "s/^version:.*/version: ${version}/" snap/snapcraft.yaml
+          grep '^version:' snap/snapcraft.yaml
 
       - name: Build snap
         if: hashFiles('snap/**') != ''
@@ -336,7 +344,7 @@ jobs:
             || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
             || gh release view "$TAG" >/dev/null
           cp "$SNAP" "${APP}_amd64.snap"
-          gh release upload "$TAG" "$SNAP" "${APP}_amd64.snap" --clobber
+          gh release upload "$TAG" "${APP}_amd64.snap" --clobber
 
   # To publish to the Snap Store later, add a job that downloads the
   # papertrail-linux-snap artefact and runs snapcore/action-publish@v1 with

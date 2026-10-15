@@ -282,11 +282,7 @@ jobs:
           gh release view "$TAG" >/dev/null 2>&1 \
             || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
             || gh release view "$TAG" >/dev/null
-          version=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//; s/+.*//' | tr -d '[:space:]')
-          cp "${APP}-macos.dmg" "${APP}-${version}-macos.dmg"
-          cp "${APP}-macos.zip" "${APP}-${version}-macos.zip"
-          gh release upload "$TAG" "${APP}-${version}-macos.dmg" "${APP}-macos.dmg" \
-            "${APP}-${version}-macos.zip" "${APP}-macos.zip" --clobber
+          gh release upload "$TAG" "${APP}-macos.dmg" "${APP}-macos.zip" --clobber
 
   ########################################################################
   # MACOS - Graham's attempt to use certificate and appstore
@@ -423,10 +419,8 @@ jobs:
           gh release view "$TAG" >/dev/null 2>&1 \
             || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
             || gh release view "$TAG" >/dev/null
-          version=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//; s/+.*//' | tr -d '[:space:]')
-          cp "${APP}-macos.dmg" "${APP}-${version}-macos-notarized.dmg"
           cp "${APP}-macos.dmg" "${APP}-macos-notarized.dmg"
-          gh release upload "$TAG" "${APP}-${version}-macos-notarized.dmg" "${APP}-macos-notarized.dmg" --clobber
+          gh release upload "$TAG" "${APP}-macos-notarized.dmg" --clobber
 
   ########################################################################
   # MACOS - UNSIGNED

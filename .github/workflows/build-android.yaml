@@ -13,7 +13,7 @@ name: Build Installers (Android)
 #
 # 2. A version tag (v*) whose commit or tag message contains "publish" or
 #    "build android". The APK is then also attached to that tag's GitHub
-#    Release, versioned and as papertrail.apk, so
+#    Release as papertrail.apk (the release itself is versioned), so
 #      https://github.com/anushkavidanage/papertrail/releases/latest/download/papertrail.apk
 #    always points at the newest one. The App Bundle stays an artefact: it is
 #    for Google Play, not for installing directly.
@@ -223,4 +223,4 @@ jobs:
             || gh release create "$TAG" --verify-tag --generate-notes --title "Papertrail ${TAG#v}" \
             || gh release view "$TAG" >/dev/null
           cp "dist/${APP}-${VERSION}.apk" "dist/${APP}.apk"
-          gh release upload "$TAG" "dist/${APP}-${VERSION}.apk" "dist/${APP}.apk" --clobber
+          gh release upload "$TAG" "dist/${APP}.apk" --clobber
